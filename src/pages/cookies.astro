@@ -1,0 +1,54 @@
+---
+import Casino from '../layouts/Casino.astro';
+import { SITE } from '../site';
+
+const rows = [
+  { name: 'cc_session', type: 'Cookie propia', purpose: 'Mantener tu sesión iniciada (solo si tienes cuenta). httpOnly, no accesible desde JavaScript.', duration: '30 días', kind: 'Necesaria' },
+  { name: 'cine-casino-v1', type: 'localStorage propio', purpose: 'Tu partida: fichas, nivel, botín, logros y preferencias de juego.', duration: 'Hasta que la borres', kind: 'Necesaria' },
+  { name: 'cc-consent', type: 'localStorage propio', purpose: 'Recordar lo que elegiste en este aviso.', duration: 'Hasta que la borres', kind: 'Necesaria' },
+  { name: 'cc-ann-dismissed', type: 'localStorage propio', purpose: 'Recordar qué anuncio has cerrado.', duration: 'Hasta que la borres', kind: 'Necesaria' },
+  { name: 'Caché de la app', type: 'Cache Storage (service worker)', purpose: 'Guardar archivos de la web e imágenes para que cargue rápido y funcione sin conexión.', duration: 'Hasta la siguiente versión', kind: 'Necesaria' },
+  { name: 'YouTube (youtube-nocookie.com)', type: 'De terceros', purpose: 'Reproducir tráileres. Solo se carga si lo permites y pulsas “Tráiler”.', duration: 'Según Google', kind: 'Opcional' },
+];
+---
+
+<Casino title="Política de cookies" variant="page">
+  <article class="legal">
+    <h1>Política de cookies</h1>
+    <p class="muted">Última actualización: {SITE.legalUpdated}</p>
+    <p>
+      {SITE.name} usa lo mínimo imprescindible para funcionar. <b>No hay cookies de analítica, publicidad ni seguimiento.</b> Solo el contenido de YouTube es opcional, y no se carga hasta que lo permites.
+    </p>
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Nombre</th><th>Tipo</th><th>Finalidad</th><th>Duración</th><th>Categoría</th></tr></thead>
+        <tbody>
+          {
+            rows.map((r) => (
+              <tr>
+                <td><code>{r.name}</code></td>
+                <td>{r.type}</td>
+                <td>{r.purpose}</td>
+                <td>{r.duration}</td>
+                <td>{r.kind === 'Necesaria' ? '✅ Necesaria' : '⚙️ Opcional'}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Cambiar tu elección</h2>
+    <p>Puedes cambiar tu elección cuando quieras:</p>
+    <p><button type="button" class="btn btn-gold" data-cookie-prefs>🍪 Abrir preferencias de cookies</button></p>
+    <p>
+      También puedes borrar todo desde la configuración de tu navegador (datos de sitios). Si borras el almacenamiento local sin tener cuenta, <b>perderás tu partida</b>.
+    </p>
+
+    <h2>Imágenes de TMDB</h2>
+    <p>
+      Los carteles se descargan de <code>image.tmdb.org</code>. Son imágenes, no cookies, pero TMDB recibe tu IP como cualquier servidor web. Más en la <a href="/privacidad">política de privacidad</a>.
+    </p>
+  </article>
+</Casino>

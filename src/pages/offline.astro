@@ -1,0 +1,13 @@
+---
+import Casino from '../layouts/Casino.astro';
+---
+
+<Casino title="Sin conexión" variant="page">
+  <section class="offline">
+    <div class="offline-icon">📡</div>
+    <h1 class="page-title">SIN SEÑAL</h1>
+    <p class="muted center">El casino necesita internet para traer películas de TMDB. En cuanto vuelva la conexión, seguimos.</p>
+    <p class="center"><button class="btn btn-gold btn-xl" onclick="location.reload()">🔄 Reintentar</button></p>
+    <p class="muted small center">Tu partida está a salvo en este dispositivo.</p>
+  </section>
+</Casino>

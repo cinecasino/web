@@ -1,0 +1,231 @@
+---
+import Casino from '../layouts/Casino.astro';
+---
+
+<Casino title="¿Más o Menos?" active="hilo">
+  <section class="hilo">
+    <h1 class="page-title">🃏 ¿MÁS O MENOS?</h1>
+    <p class="muted center">¿El de la derecha tiene <b>más</b> o <b>menos</b> nota en TMDB? Cada acierto multiplica el bote. Un fallo y lo pierdes todo.</p>
+
+    <div class="hilo-status">
+      <div><small>BOTE</small><b id="pot">0</b></div>
+      <div><small>RACHA</small><b id="streak">0</b></div>
+      <div><small>SI ACIERTAS</small><b id="next">—</b></div>
+    </div>
+
+    <div class="hilo-arena">
+      <div class="hilo-card" id="left"><div class="hilo-ph">🎬</div></div>
+      <div class="vs">VS</div>
+      <div class="hilo-card" id="right"><div class="hilo-ph">❓</div></div>
+    </div>
+
+    <div class="hilo-actions" id="guess-actions" hidden>
+      <button class="btn btn-green btn-xl" id="higher">⬆ MÁS NOTA</button>
+      <button class="btn btn-red btn-xl" id="lower">⬇ MENOS NOTA</button>
+    </div>
+
+    <div class="hilo-actions">
+      <div class="bets" id="bets">
+        <span>Apuesta</span>
+        <button class="bet active" data-bet="25">25</button>
+        <button class="bet" data-bet="50">50</button>
+        <button class="bet" data-bet="100">100</button>
+        <button class="bet" data-bet="250">250</button>
+      </div>
+      <button class="btn btn-gold btn-xl btn-pulse" id="start">🃏 EMPEZAR</button>
+      <button class="btn btn-gold btn-xl" id="cashout" hidden>💰 PLANTARSE</button>
+    </div>
+  </section>
+</Casino>
+
+<script>
+  import { spend, earn, stat, statMax } from '../lib/store';
+  import { randomDiscover, typesForMode, img, type Title } from '../lib/tmdb';
+  import { register } from '../lib/card';
+  import { rarityOf, RARITY } from '../lib/rarity';
+  import { sfx } from '../lib/sfx';
+  import * as fx from '../lib/fx';
+  import { esc, fmt, shuffle, sleep } from '../lib/util';
+
+  const $ = (id: string) => document.getElementById(id)!;
+  const leftEl = $('left');
+  const rightEl = $('right');
+  const startBtn = $('start') as HTMLButtonElement;
+  const cashBtn = $('cashout') as HTMLButtonElement;
+  const guessBox = $('guess-actions');
+  const higher = $('higher') as HTMLButtonElement;
+  const lower = $('lower') as HTMLButtonElement;
+
+  let bet = 25;
+  let pot = 0;
+  let streak = 0;
+  let playing = false;
+  let busy = false;
+  let queue: Title[] = [];
+  let left: Title | null = null;
+  let right: Title | null = null;
+
+  const potFor = (k: number) => Math.round(bet * Math.pow(1.45, k));
+
+  async function refill() {
+    const jobs = typesForMode().flatMap((t) => [randomDiscover(t, { minVotes: 400 }, 40), randomDiscover(t, { minVotes: 400 }, 40)]);
+    const res = await Promise.allSettled(jobs);
+    const seen = new Set([left?.key, right?.key, ...queue.map((q) => q.key)]);
+    const fresh = res.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])).filter((t) => !seen.has(t.key) && t.votes > 0);
+    queue.push(...shuffle(fresh));
+  }
+
+  async function nextFor(ref: Title | null): Promise<Title> {
+    if (queue.length < 4) await refill();
+    const idx = queue.findIndex((t) => !ref || (t.vote !== ref.vote && t.key !== ref.key));
+    return queue.splice(Math.max(0, idx), 1)[0];
+  }
+
+  function cardHTML(t: Title, showVote: boolean) {
+    const r = rarityOf(t.vote, t.votes);
+    register(t);
+    // La carta oculta va en neutro: el color de rareza delataría la nota
+    return `<div class="hilo-inner ${showVote ? `r-${r}` : 'r-hidden'}" data-rarity="${r}" ${showVote ? `data-title-key="${t.key}" role="button" tabindex="0"` : ''}>
+      <img src="${img(t.poster, 'w342')}" alt="">
+      <div class="hilo-info">
+        <span class="chip">${t.type === 'movie' ? '🎬' : '📺'} ${t.year}</span>
+        <h3>${esc(t.title)}</h3>
+        <div class="hilo-vote ${showVote ? '' : 'hidden-vote'}" data-vote>${showVote ? t.vote.toFixed(1) : '?.?'}</div>
+        ${showVote ? `<small style="color:${RARITY[r].color}">${RARITY[r].emoji} ${RARITY[r].label}</small>` : '<small>¿más o menos?</small>'}
+      </div>
+    </div>`;
+  }
+
+  function unmask() {
+    const inner = rightEl.querySelector<HTMLElement>('.hilo-inner');
+    if (inner) inner.className = `hilo-inner r-${inner.dataset.rarity}`;
+  }
+
+  function renderStatus() {
+    $('pot').textContent = fmt(pot);
+    $('streak').textContent = String(streak);
+    $('next').textContent = playing ? `${fmt(potFor(streak + 1))} 🪙` : '—';
+    cashBtn.hidden = !playing || streak === 0;
+    startBtn.hidden = playing;
+    guessBox.hidden = !playing;
+    document.querySelectorAll<HTMLButtonElement>('.bet').forEach((b) => (b.disabled = playing));
+  }
+
+  async function start() {
+    if (playing || busy) return;
+    if (!spend(bet)) return;
+    busy = true;
+    startBtn.disabled = true;
+    pot = bet;
+    streak = 0;
+    sfx.whoosh();
+    try {
+      left = await nextFor(null);
+      right = await nextFor(left);
+    } catch {
+      fx.toast('No se pudo cargar TMDB. Te devolvemos la apuesta.', { icon: '📡' });
+      earn(bet);
+      busy = false;
+      startBtn.disabled = false;
+      return;
+    }
+    leftEl.innerHTML = cardHTML(left, true);
+    rightEl.innerHTML = cardHTML(right, false);
+    leftEl.className = 'hilo-card deal';
+    rightEl.className = 'hilo-card deal';
+    playing = true;
+    busy = false;
+    startBtn.disabled = false;
+    renderStatus();
+  }
+
+  async function guess(up: boolean) {
+    if (!playing || busy || !left || !right) return;
+    busy = true;
+    higher.disabled = lower.disabled = true;
+    const voteEl = rightEl.querySelector<HTMLElement>('[data-vote]')!;
+    voteEl.classList.remove('hidden-vote');
+    unmask();
+    sfx.drumroll(900);
+    fx.countUp(voteEl, 0, right.vote, 1100, (n) => n.toFixed(1), () => sfx.tick());
+    await sleep(1200);
+    const ok = up ? right.vote >= left.vote : right.vote <= left.vote;
+    if (ok) {
+      streak++;
+      const prev = pot;
+      pot = potFor(streak);
+      rightEl.classList.add('correct');
+      sfx.win();
+      fx.burst({ particleCount: 50 + streak * 15, origin: { y: 0.55 } });
+      fx.countUp($('pot'), prev, pot, 600);
+      fx.floatFrom($('pot'), `x${(pot / bet).toFixed(1)}`, 'pos');
+      if (streak >= 5) fx.shake('sm');
+      if (streak % 5 === 0) fx.banner(`¡RACHA DE ${streak}!`, `Bote: ${fmt(pot)} 🪙`, 'var(--pink)', 1500);
+      statMax('hiloBest', streak);
+      await sleep(900);
+      left = right;
+      right = await nextFor(left);
+      leftEl.innerHTML = cardHTML(left, true);
+      rightEl.innerHTML = cardHTML(right, false);
+      leftEl.className = 'hilo-card slide';
+      rightEl.className = 'hilo-card deal';
+      renderStatus();
+    } else {
+      rightEl.classList.add('wrong');
+      leftEl.classList.add('dim');
+      rightEl.querySelector('.hilo-inner')!.setAttribute('data-title-key', right.key);
+      sfx.lose();
+      fx.shake('lg');
+      fx.flash('#ff2f55');
+      stat('hilo');
+      fx.toast(`💀 ¡Palmaste! Perdiste un bote de <b>${fmt(pot)}</b> 🪙 con racha de ${streak}.`, { icon: '🃏', color: 'var(--red)' });
+      pot = 0;
+      playing = false;
+      renderStatus();
+    }
+    higher.disabled = lower.disabled = false;
+    busy = false;
+  }
+
+  function cashout() {
+    if (!playing || busy || streak === 0) return;
+    const amount = pot;
+    earn(amount);
+    stat('hilo');
+    statMax('hiloBest', streak);
+    sfx.coins(10);
+    fx.coinRain(Math.min(100, 20 + streak * 8));
+    if (streak >= 4) fx.fireworks(2000);
+    fx.toast(`Te plantas con <b>${fmt(amount)}</b> 🪙 (racha ${streak}). Cobarde… o listo. 😏`, { icon: '💰', color: 'var(--gold)' });
+    if (right) rightEl.querySelector('.hilo-inner')!.setAttribute('data-title-key', right.key);
+    const v = rightEl.querySelector<HTMLElement>('[data-vote]');
+    if (v && right) {
+      v.classList.remove('hidden-vote');
+      v.textContent = right.vote.toFixed(1);
+      unmask();
+    }
+    pot = 0;
+    playing = false;
+    renderStatus();
+  }
+
+  $('bets').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-bet]');
+    if (!b || playing) return;
+    bet = Number(b.dataset.bet);
+    document.querySelectorAll('.bet').forEach((x) => x.classList.toggle('active', x === b));
+    sfx.coin();
+  });
+  startBtn.addEventListener('click', start);
+  cashBtn.addEventListener('click', cashout);
+  higher.addEventListener('click', () => guess(true));
+  lower.addEventListener('click', () => guess(false));
+  document.addEventListener('keydown', (e) => {
+    if ((document.getElementById('modal') as HTMLDialogElement).open) return;
+    if (e.key === 'ArrowUp') guess(true);
+    if (e.key === 'ArrowDown') guess(false);
+  });
+
+  renderStatus();
+  refill().catch(() => {});
+</script>

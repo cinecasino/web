@@ -1,0 +1,339 @@
+---
+import Casino from '../layouts/Casino.astro';
+import { all, getSetting, one } from '../server/db';
+
+export const prerender = false;
+
+const DAY = 86_400_000;
+const now = Date.now();
+const n = async (sql: string, args: (string | number)[] = []) => Number((await one<{ n: number }>(sql, args))?.n ?? 0);
+
+const kpis = {
+  users: await n('SELECT COUNT(*) AS n FROM users'),
+  new7: await n('SELECT COUNT(*) AS n FROM users WHERE created_at > ?', [now - 7 * DAY]),
+  active7: await n('SELECT COUNT(*) AS n FROM users WHERE last_login_at > ?', [now - 7 * DAY]),
+  synced24: await n('SELECT COUNT(*) AS n FROM saves WHERE updated_at > ?', [now - DAY]),
+  banned: await n("SELECT COUNT(*) AS n FROM users WHERE status = 'banned'"),
+  admins: await n("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'"),
+  coins: await n('SELECT COALESCE(SUM(coins), 0) AS n FROM saves'),
+  plays: await n('SELECT COALESCE(SUM(plays), 0) AS n FROM saves'),
+};
+
+// Registros por día (últimos 14 días)
+const signups = await all<{ created_at: number }>('SELECT created_at FROM users WHERE created_at > ?', [now - 14 * DAY]);
+const days = Array.from({ length: 14 }, (_, i) => {
+  const d = new Date(now - (13 - i) * DAY);
+  const key = d.toISOString().slice(0, 10);
+  return { key, label: d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }), count: 0 };
+});
+for (const s of signups) {
+  const key = new Date(Number(s.created_at)).toISOString().slice(0, 10);
+  const day = days.find((d) => d.key === key);
+  if (day) day.count++;
+}
+const maxDay = Math.max(1, ...days.map((d) => d.count));
+
+const top = await all<{ username: string; level: number; coins: number; botin: number; plays: number }>(
+  'SELECT u.username, s.level, s.coins, s.botin, s.plays FROM saves s JOIN users u ON u.id = s.user_id ORDER BY s.level DESC, s.coins DESC LIMIT 10',
+);
+
+// Títulos más guardados en los botines (se analizan las 2.000 partidas más recientes)
+const saves = await all<{ data: string }>('SELECT data FROM saves ORDER BY updated_at DESC LIMIT 2000');
+const titleCount = new Map<string, { title: string; type: string; n: number }>();
+for (const s of saves) {
+  try {
+    for (const b of JSON.parse(s.data).botin ?? []) {
+      const e = titleCount.get(b.key) ?? { title: b.title, type: b.type, n: 0 };
+      e.n++;
+      titleCount.set(b.key, e);
+    }
+  } catch {}
+}
+const topTitles = [...titleCount.values()].sort((a, b) => b.n - a.n).slice(0, 10);
+
+const audit = await all<{ action: string; detail: string; created_at: number; admin: string | null; target: string | null }>(
+  `SELECT a.action, a.detail, a.created_at, ad.username AS admin, t.username AS target
+   FROM audit_log a LEFT JOIN users ad ON ad.id = a.admin_id LEFT JOIN users t ON t.id = a.target_id
+   ORDER BY a.id DESC LIMIT 30`,
+);
+const annRaw = await getSetting('announcement');
+const announcement = annRaw ? JSON.parse(annRaw) : null;
+const fmt = (v: number) => Math.round(v).toLocaleString('es-ES');
+const when = (t: number) => new Date(Number(t)).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+---
+
+<Casino title="Admin" variant="page">
+  <section class="admin">
+    <h1 class="page-title">🛠️ PANEL DE ADMINISTRACIÓN</h1>
+
+    <div class="kpis">
+      <div><small>Usuarios</small><b>{fmt(kpis.users)}</b></div>
+      <div><small>Nuevos (7 días)</small><b>{fmt(kpis.new7)}</b></div>
+      <div><small>Activos (7 días)</small><b>{fmt(kpis.active7)}</b></div>
+      <div><small>Partidas sincronizadas (24 h)</small><b>{fmt(kpis.synced24)}</b></div>
+      <div><small>Partidas jugadas</small><b>{fmt(kpis.plays)}</b></div>
+      <div><small>Fichas en circulación</small><b>{fmt(kpis.coins)}</b></div>
+      <div><small>Suspendidos</small><b>{fmt(kpis.banned)}</b></div>
+      <div><small>Admins</small><b>{fmt(kpis.admins)}</b></div>
+    </div>
+
+    <div class="admin-grid">
+      <div class="acc-card">
+        <h2>📈 Registros (14 días)</h2>
+        <div class="bars">
+          {
+            days.map((d) => (
+              <div class="bar-col" title={`${d.label}: ${d.count}`}>
+                <span class="bar-v">{d.count || ''}</span>
+                <i style={`height:${(d.count / maxDay) * 100}%`} />
+                <small>{d.label}</small>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      <form class="acc-card" id="ann-form">
+        <h2>📣 Anuncio global</h2>
+        <p class="muted small">Aparece arriba a todos los jugadores hasta que lo cierren. Déjalo vacío para quitarlo.</p>
+        <textarea name="announcement" maxlength="280" rows="3" placeholder="¡Fin de semana de jackpot doble!">{announcement?.text ?? ''}</textarea>
+        <div class="acc-actions">
+          <select name="level" class="select">
+            <option value="info" selected={announcement?.level === 'info'}>📣 Info</option>
+            <option value="event" selected={announcement?.level === 'event'}>🎉 Evento</option>
+            <option value="warning" selected={announcement?.level === 'warning'}>⚠️ Aviso</option>
+          </select>
+          <button class="btn btn-gold">Publicar</button>
+        </div>
+        <p class="form-msg" data-msg></p>
+      </form>
+
+      <div class="acc-card">
+        <h2>🏆 Top jugadores</h2>
+        <table class="tbl">
+          <thead><tr><th>Jugador</th><th>Nivel</th><th>Fichas</th><th>Botín</th><th>Partidas</th></tr></thead>
+          <tbody>
+            {
+              top.map((t) => (
+                <tr>
+                  <td>{t.username}</td>
+                  <td>{t.level}</td>
+                  <td>{fmt(t.coins)}</td>
+                  <td>{t.botin}</td>
+                  <td>{fmt(t.plays)}</td>
+                </tr>
+              ))
+            }
+            {top.length === 0 && <tr><td colspan="5" class="muted">Aún no hay partidas sincronizadas.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="acc-card">
+        <h2>🎬 Más guardados en botines</h2>
+        <table class="tbl">
+          <thead><tr><th>Título</th><th>Tipo</th><th>Botines</th></tr></thead>
+          <tbody>
+            {
+              topTitles.map((t) => (
+                <tr>
+                  <td>{t.title}</td>
+                  <td>{t.type === 'movie' ? '🎬' : '📺'}</td>
+                  <td>{t.n}</td>
+                </tr>
+              ))
+            }
+            {topTitles.length === 0 && <tr><td colspan="3" class="muted">Sin datos todavía.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="acc-card">
+      <div class="users-head">
+        <h2>👥 Usuarios</h2>
+        <div class="acc-actions">
+          <input type="search" id="u-q" placeholder="Buscar email o nombre…" />
+          <select id="u-sort" class="select">
+            <option value="recent">Más recientes</option>
+            <option value="login">Último acceso</option>
+            <option value="level">Nivel</option>
+            <option value="coins">Fichas</option>
+            <option value="botin">Botín</option>
+            <option value="plays">Partidas</option>
+          </select>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl users-tbl">
+          <thead>
+            <tr><th>Jugador</th><th>Rol</th><th>Estado</th><th>Nivel</th><th>Fichas</th><th>Botín</th><th>Alta</th><th>Último acceso</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="u-body"><tr><td colspan="9" class="muted">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pager" id="u-pager"></div>
+    </div>
+
+    <div class="acc-card">
+      <h2>📜 Registro de auditoría</h2>
+      <table class="tbl">
+        <thead><tr><th>Cuándo</th><th>Admin</th><th>Acción</th><th>Usuario</th><th>Detalle</th></tr></thead>
+        <tbody>
+          {
+            audit.map((a) => (
+              <tr>
+                <td>{when(a.created_at)}</td>
+                <td>{a.admin ?? '—'}</td>
+                <td><code>{a.action}</code></td>
+                <td>{a.target ?? '—'}</td>
+                <td>{a.detail}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <input type="hidden" id="me-id" value={Astro.locals.user!.id} />
+</Casino>
+
+<script>
+  import { api } from '../lib/account';
+  import { openModal, closeModal } from '../lib/card';
+  import * as fx from '../lib/fx';
+  import { esc, fmt } from '../lib/util';
+
+  const meId = (document.getElementById('me-id') as HTMLInputElement).value;
+  const body = document.getElementById('u-body')!;
+  const pager = document.getElementById('u-pager')!;
+  const q = document.getElementById('u-q') as HTMLInputElement;
+  const sort = document.getElementById('u-sort') as HTMLSelectElement;
+  let page = 1;
+  let users: any[] = [];
+  const when = (t: number | null) => (t ? new Date(Number(t)).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+
+  async function load() {
+    const r = await api(`/api/admin/users?q=${encodeURIComponent(q.value)}&sort=${sort.value}&page=${page}`);
+    if (!r.ok) {
+      body.innerHTML = `<tr><td colspan="9">${esc(r.data?.error ?? 'Error')}</td></tr>`;
+      return;
+    }
+    users = r.data.users;
+    body.innerHTML =
+      users
+        .map(
+          (u) => `<tr class="${u.status === 'banned' ? 'banned' : ''}">
+        <td><b>${esc(u.username)}</b><br><small class="muted">${esc(u.email)}</small></td>
+        <td>${u.role === 'admin' ? '🛠️ admin' : 'jugador'}</td>
+        <td>${u.status === 'banned' ? '⛔ suspendido' : '✅ activo'}</td>
+        <td>${u.level}</td><td>${fmt(u.coins)}</td><td>${u.botin}</td>
+        <td>${when(u.created_at)}</td><td>${when(u.last_login_at)}</td>
+        <td class="row-actions">${u.id === meId ? '<small class="muted">(tú)</small>' : ''}
+          <button class="mini" data-a="grant" data-id="${u.id}" title="Regalar fichas">🎁</button>
+          <button class="mini" data-a="message" data-id="${u.id}" title="Enviar mensaje">📣</button>
+          ${u.id === meId ? '' : `<button class="mini" data-a="${u.status === 'banned' ? 'unban' : 'ban'}" data-id="${u.id}" title="${u.status === 'banned' ? 'Reactivar' : 'Suspender'}">${u.status === 'banned' ? '♻️' : '⛔'}</button>`}
+          ${u.id === meId ? '' : `<button class="mini" data-a="role" data-id="${u.id}" title="${u.role === 'admin' ? 'Quitar admin' : 'Hacer admin'}">${u.role === 'admin' ? '⬇️' : '🛠️'}</button>`}
+          <button class="mini" data-a="password" data-id="${u.id}" title="Contraseña temporal">🔑</button>
+          <button class="mini" data-a="reset" data-id="${u.id}" title="Reiniciar partida">🔄</button>
+          ${u.id === meId ? '' : `<button class="mini" data-a="delete" data-id="${u.id}" title="Borrar usuario">🗑️</button>`}
+        </td></tr>`,
+        )
+        .join('') || '<tr><td colspan="9" class="muted">Sin resultados.</td></tr>';
+    pager.innerHTML = `<button class="chip" ${page <= 1 ? 'disabled' : ''} data-p="-1">◀</button> Página ${r.data.page} de ${r.data.pages} · ${fmt(r.data.total)} usuarios <button class="chip" ${page >= r.data.pages ? 'disabled' : ''} data-p="1">▶</button>`;
+  }
+
+  pager.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-p]');
+    if (!b || b.disabled) return;
+    page += Number(b.dataset.p);
+    load();
+  });
+  let t: ReturnType<typeof setTimeout>;
+  q.addEventListener('input', () => {
+    clearTimeout(t);
+    t = setTimeout(() => ((page = 1), load()), 300);
+  });
+  sort.addEventListener('change', () => ((page = 1), load()));
+
+  async function act(id: string, payload: Record<string, unknown>) {
+    const r = await api(`/api/admin/users/${id}`, { method: 'POST', json: payload });
+    if (!r.ok) fx.toast(esc(r.data?.error ?? 'Error'), { icon: '⚠️', color: 'var(--red)' });
+    return r;
+  }
+
+  function promptForm(title: string, fields: string, onSubmit: (d: Record<string, string>) => Promise<void>) {
+    const inner = openModal(`<form class="admin-form"><h2>${title}</h2>${fields}<div class="acc-actions"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-gold">Confirmar</button></div></form>`);
+    const f = inner.querySelector('form')!;
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await onSubmit(Object.fromEntries(new FormData(f).entries()) as Record<string, string>);
+    });
+  }
+
+  body.addEventListener('click', async (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-a]');
+    if (!b) return;
+    const id = b.dataset.id!;
+    const u = users.find((x) => x.id === id);
+    const name = esc(u?.username ?? '');
+    switch (b.dataset.a) {
+      case 'grant':
+        return promptForm(
+          `🎁 Regalar fichas a ${name}`,
+          '<label>Cantidad<input type="number" name="amount" min="1" max="1000000" value="500" required></label><label>Mensaje<input name="message" maxlength="200" placeholder="Regalo de la casa"></label><p class="muted small">Le llegará la próxima vez que abra el casino.</p>',
+          async (d) => {
+            if ((await act(id, { action: 'grant', amount: Number(d.amount), message: d.message })).ok) {
+              closeModal();
+              fx.toast(`Regalo enviado a ${name}.`, { icon: '🎁' });
+            }
+          },
+        );
+      case 'message':
+        return promptForm(`📣 Mensaje a ${name}`, '<label>Mensaje<textarea name="message" maxlength="300" rows="3" required></textarea></label>', async (d) => {
+          if ((await act(id, { action: 'message', message: d.message })).ok) {
+            closeModal();
+            fx.toast('Mensaje enviado.', { icon: '📣' });
+          }
+        });
+      case 'role':
+        if (!confirm(u.role === 'admin' ? `¿Quitar admin a ${u.username}?` : `¿Hacer admin a ${u.username}? Tendrá acceso total a este panel.`)) return;
+        await act(id, { action: 'role', role: u.role === 'admin' ? 'user' : 'admin' });
+        return load();
+      case 'ban':
+        if (!confirm(`¿Suspender a ${u.username}? Se cerrarán sus sesiones y no podrá entrar.`)) return;
+        await act(id, { action: 'ban' });
+        return load();
+      case 'unban':
+        await act(id, { action: 'unban' });
+        return load();
+      case 'password': {
+        if (!confirm(`¿Generar una contraseña temporal para ${u.username}? La actual dejará de valer.`)) return;
+        const r = await act(id, { action: 'password' });
+        if (r.ok)
+          openModal(`<div class="admin-form"><h2>🔑 Contraseña temporal</h2><p>Pásasela a <b>${name}</b> por un canal seguro y pídele que la cambie al entrar:</p><code class="temp-pw">${esc(r.data.tempPassword)}</code><p class="muted small">No se volverá a mostrar.</p></div>`);
+        return;
+      }
+      case 'reset':
+        if (!confirm(`¿Reiniciar la partida de ${u.username}? Perderá fichas, nivel y botín.`)) return;
+        await act(id, { action: 'reset' });
+        return load();
+      case 'delete':
+        if (prompt(`Escribe el nombre "${u.username}" para borrar la cuenta y todos sus datos:`) !== u.username) return;
+        await act(id, { action: 'delete' });
+        return load();
+    }
+  });
+
+  const annForm = document.getElementById('ann-form') as HTMLFormElement;
+  annForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(annForm).entries());
+    const r = await api('/api/admin/settings', { method: 'POST', json: d });
+    const m = annForm.querySelector<HTMLElement>('[data-msg]')!;
+    m.textContent = r.ok ? (d.announcement ? 'Anuncio publicado. ✅' : 'Anuncio quitado.') : r.data?.error ?? 'Error';
+    m.className = `form-msg ${r.ok ? 'ok' : 'err'}`;
+  });
+
+  load();
+</script>

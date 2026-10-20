@@ -1,0 +1,41 @@
+name: 🐞 Algo no funciona
+description: Informa de un fallo de la beta
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: ¿Qué ha pasado?
+      description: Qué esperabas que pasara y qué pasó en realidad.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducirlo
+      placeholder: |
+        1. Entra en /rasca
+        2. Pulsa "Rascar todo"
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: ¿Dónde?
+      options: [Lobby, Tragaperras, Ruleta, Cajas, Rasca y gana, ¿Más o Menos?, Mi Botín, Logros, Cuenta, Landing, App instalada, Otro]
+  - type: input
+    id: device
+    attributes:
+      label: Dispositivo y navegador
+      placeholder: Android 15 · Chrome / Windows 11 · Edge
+  - type: input
+    id: version
+    attributes:
+      label: Versión
+      description: Sale al pie de la página (p. ej. v0.9.0-beta.1)
+  - type: textarea
+    id: shots
+    attributes:
+      label: Capturas
+      description: Arrastra aquí imágenes si ayudan. No incluyas tu email ni datos personales.

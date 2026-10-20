@@ -1,0 +1,501 @@
+---
+import Casino from '../layouts/Casino.astro';
+import { SITE } from '../site';
+import { RARITIES, RARITY } from '../lib/rarity';
+import { existsSync } from 'node:fs';
+
+const hasTmdbLogo = existsSync('public/brand/tmdb.svg');
+
+const rarityRules: Record<string, string> = {
+  comun: 'Nota por debajo de 6,4',
+  rara: 'Nota de 6,4 o más',
+  epica: '7,1 o más y al menos 150 votos',
+  legendaria: '7,7 o más y al menos 500 votos',
+  mitica: '8,2 o más y al menos 1.500 votos',
+};
+const faqs = [
+  ['¿Es gratis?', 'Sí. No hay compras, suscripciones ni anuncios.'],
+  ['¿Hay dinero real?', 'No. Las fichas son de mentira: no se compran, no se venden y no se canjean por nada. Es un casino de broma para decidir qué ver.'],
+  ['¿De dónde salen las películas?', 'De TMDB (The Movie Database), una base de datos abierta y colaborativa. Los datos de “dónde verla” los aporta JustWatch.'],
+  ['¿Necesito cuenta?', 'No. Sin cuenta tu partida vive en tu navegador. Con cuenta se guarda en la nube y la tienes en todos tus dispositivos.'],
+  ['¿Funciona sin conexión?', 'La app instalada abre aunque no haya red y conserva tu partida, pero para traer títulos nuevos necesita internet.'],
+  ['¿Puedo borrar mis datos?', 'Sí, en Mi cuenta puedes descargarlos todos o borrar la cuenta al momento. Sin cuenta, basta con borrar los datos del sitio en tu navegador.'],
+];
+const credits = [
+  ['TMDB', 'Películas, series, carteles, tráileres y reparto', 'https://www.themoviedb.org'],
+  ['JustWatch', 'Datos de plataformas donde ver cada título (vía TMDB)', 'https://www.justwatch.com'],
+  ['YouTube', 'Reproducción de tráileres (solo con tu consentimiento)', 'https://www.youtube.com'],
+  ['Bungee y Bungee Shade', 'Tipografías de David Jonathan Ross · SIL Open Font License', 'https://djr.com/bungee'],
+  ['Rubik', 'Tipografía de Hubert & Fischer · SIL Open Font License', 'https://fonts.google.com/specimen/Rubik'],
+  ['canvas-confetti', 'El confeti de cada premio · Licencia ISC', 'https://github.com/catdad/canvas-confetti'],
+  ['Astro', 'El framework web sobre el que está construido', 'https://astro.build'],
+  ['libSQL / Turso', 'Base de datos de cuentas y partidas', 'https://turso.tech'],
+  ['Fluent Emoji', 'Emoji 🎰 del icono de la app, de Microsoft · Licencia MIT', 'https://github.com/microsoft/fluentui-emoji'],
+];
+---
+
+<Casino variant="page">
+  <section class="land-hero">
+    <div class="land-hero-text">
+      <p class="hero-kicker">✦ sin dinero real ✦ sin anuncios ✦ con mucho confeti ✦</p>
+      <h1 class="mega-title land-title"><span class="neon-pink flicker">{SITE.logo[0]}</span><br /><span class="neon-gold">{SITE.logo[1]}</span></h1>
+      {SITE.stage && <p class="stage-note">🧪 Versión {SITE.stage.toLowerCase()} pública: puede haber fallos y la partida podría reiniciarse antes de la versión final.</p>}
+      <p class="tagline">
+        ¿Media hora decidiendo qué ver y al final repites la de siempre? Aquí tiras de la palanca, gira la ruleta o rascas un boleto… <b>y el premio es tu próxima película o serie.</b>
+      </p>
+      <div class="hero-actions land-ctas">
+        <a class="btn btn-gold btn-xl btn-pulse" href="/">🎰 Entrar al casino</a>
+        <a class="btn btn-ghost btn-xl" href="/cuenta#registro">👤 Crear cuenta</a>
+        <button class="btn btn-ghost btn-xl" data-install="always">📲 Instalar app</button>
+      </div>
+    </div>
+    <div class="poster-fan" id="fan">
+      <div class="fan-stage">
+        {
+          [-2, -1, 0, 1, 2].map((i) => (
+            <div class="fan-slot" style={`--i:${i};z-index:${10 - Math.abs(i)}`} data-i={i}>
+              <div class="fan-float">
+                <div class="fan-card r-comun">
+                  <div class="fan-ph">🎬</div>
+                </div>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="land-section">
+    <h2 class="section-title center">🎯 Para qué sirve</h2>
+    <div class="steps">
+      <div class="step"><span>1</span><div class="step-icon">🎰</div><h3>Juegas</h3><p>Tragaperras, ruleta, rasca y gana, cajas de botín y ¿Más o Menos?, con fichas de mentira.</p></div>
+      <div class="step"><span>2</span><div class="step-icon">🎁</div><h3>Ganas títulos</h3><p>Cada jugada te da una película o serie real de TMDB, con su rareza según la nota.</p></div>
+      <div class="step"><span>3</span><div class="step-icon">🍿</div><h3>Decides</h3><p>Guárdalo en tu botín y, cuando no sepas qué ver, la ruleta de “¿Qué veo hoy?” decide por ti.</p></div>
+    </div>
+  </section>
+
+  <section class="land-section">
+    <h2 class="section-title center">🕹️ Pruébalo aquí mismo</h2>
+    <p class="muted center">Versiones en miniatura de los juegos de verdad. Aquí no gastas fichas ni se guarda nada.</p>
+
+    <div class="demos">
+      <div class="demo-card" style="--c:#ff2f55">
+        <div class="demo-head"><h3>🎰 Tragaperras</h3><a href="/tragaperras">Jugar de verdad →</a></div>
+        <div class="demo-slot" id="demo-slot">
+          <div class="demo-reels">
+            <div class="reel demo-reel"><div class="strip"></div></div>
+            <div class="reel demo-reel"><div class="strip"></div></div>
+            <div class="reel demo-reel"><div class="strip"></div></div>
+          </div>
+          <button class="btn btn-red" id="demo-slot-btn">TIRAR</button>
+          <p class="demo-out" id="demo-slot-out">Tres rodillos de géneros: los que salgan deciden qué título te toca.</p>
+        </div>
+      </div>
+
+      <div class="demo-card" style="--c:#2bff88">
+        <div class="demo-head"><h3>🎡 Ruleta de géneros</h3><a href="/ruleta">Jugar de verdad →</a></div>
+        <div class="demo-wheel-wrap">
+          <div class="demo-pointer"></div>
+          <div class="demo-wheel" id="demo-wheel"></div>
+        </div>
+        <button class="btn btn-green" id="demo-wheel-btn">GIRAR</button>
+        <p class="demo-out" id="demo-wheel-out">Cae en un género… o en QUIEBRA.</p>
+      </div>
+
+      <div class="demo-card" style="--c:#29f0ff">
+        <div class="demo-head"><h3>🎟️ Rasca y gana</h3><a href="/rasca">Jugar de verdad →</a></div>
+        <div class="demo-scratch">
+          <div class="demo-syms" id="demo-syms"></div>
+          <canvas id="demo-canvas"></canvas>
+        </div>
+        <button class="btn btn-ghost" id="demo-scratch-btn">🎟️ Otro boleto</button>
+        <p class="demo-out" id="demo-scratch-out">Rasca con el ratón o con el dedo.</p>
+      </div>
+
+      <div class="demo-card wide" style="--c:#ffc93c">
+        <div class="demo-head"><h3>🎁 Cajas de botín</h3><a href="/cajas">Jugar de verdad →</a></div>
+        <div class="case-window demo-case"><div class="case-strip" id="demo-strip"></div><div class="case-marker"></div></div>
+        <button class="btn btn-gold" id="demo-case-btn">ABRIR CAJA DEMO</button>
+        <p class="demo-out" id="demo-case-out">Carteles reales de las tendencias de esta semana.</p>
+      </div>
+    </div>
+
+    <div class="more-games">
+      <div><b>🃏 ¿Más o Menos?</b><span>Adivina qué título tiene más nota. Cada acierto multiplica el bote; un fallo y lo pierdes.</span></div>
+      <div><b>💰 Mi Botín</b><span>Tu colección con filtros por rareza y la ruleta “¿Qué veo hoy?” entre tus pendientes.</span></div>
+      <div><b>🍀 Me siento con suerte</b><span>Un título bien valorado al azar, directo.</span></div>
+    </div>
+  </section>
+
+  <section class="land-section">
+    <h2 class="section-title center">💎 Rarezas</h2>
+    <p class="muted center">La rareza de cada título sale de su nota media en TMDB y de cuánta gente la ha votado. Los que aún no se han estrenado son 🔮 Próximamente.</p>
+    <div class="rarity-row" id="rarity-row">
+      {
+        RARITIES.map((r) => (
+          <div class="rarity-sample">
+            <div class={`tile r-${r} ${r === 'epica' || r === 'legendaria' || r === 'mitica' ? 'holo' : ''}`} data-sample={r}>
+              <div class="fan-ph">{RARITY[r].emoji}</div>
+            </div>
+            <b style={`color:${RARITY[r].color}`}>{RARITY[r].label}</b>
+            <small>{rarityRules[r]}</small>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="land-section">
+    <h2 class="section-title center">⚙️ Cómo funciona por dentro</h2>
+    <div class="features">
+      <div class="feature"><div>🪙</div><h3>Fichas, XP y niveles</h3><p>Empiezas con 500 fichas. Guardar títulos da XP; marcarlos como vistos da fichas. Al subir de nivel te llevas un bonus.</p></div>
+      <div class="feature"><div>🏆</div><h3>Logros y bonus diario</h3><p>22 logros con recompensa, y un cofre diario que crece con la racha. Si te arruinas, el casino te rescata.</p></div>
+      <div class="feature"><div>☁️</div><h3>Cuenta opcional</h3><p>Con cuenta, tu partida se sincroniza sola entre dispositivos. Sin cuenta, todo se queda en tu navegador.</p></div>
+      <div class="feature"><div>📲</div><h3>Instalable</h3><p>Instálala en Android, Windows, macOS o Linux desde Chrome o Edge, y en iPhone con “Añadir a pantalla de inicio”. Abre aunque no haya conexión.</p></div>
+      <div class="feature"><div>🛡️</div><h3>Privacidad</h3><p>Sin analítica, sin publicidad y sin rastreo. Solo una cookie de sesión si tienes cuenta. <a href="/privacidad">Política de privacidad</a></p></div>
+      <div class="feature"><div>🎬</div><h3>Datos reales</h3><p>Títulos, sinopsis, reparto, tráileres y dónde verlos en España, desde TMDB y JustWatch.</p></div>
+    </div>
+  </section>
+
+  <section class="land-section">
+    <h2 class="section-title center">❓ Preguntas frecuentes</h2>
+    <div class="faq">
+      {
+        faqs.map(([q, a]) => (
+          <details>
+            <summary>{q}</summary>
+            <p>{a}</p>
+          </details>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="land-section credits">
+    <h2 class="section-title center">🙌 Créditos</h2>
+    <div class="tmdb-credit">
+      {hasTmdbLogo ? <img src="/brand/tmdb.svg" alt="The Movie Database (TMDB)" width="220" height="28" /> : <b class="tmdb-name">The Movie Database (TMDB)</b>}
+      <p>
+        Este producto usa la API de TMDB, pero TMDB no lo respalda ni lo certifica. Todos los datos e imágenes de películas y series pertenecen a TMDB y a sus colaboradores.
+      </p>
+    </div>
+    <div class="credit-list">
+      {
+        credits.map(([name, what, url]) => (
+          <a class="credit" href={url} target="_blank" rel="noopener">
+            <b>{name}</b>
+            <span>{what}</span>
+          </a>
+        ))
+      }
+    </div>
+    <p class="muted small center">
+      Hecho por {SITE.owner} · v{SITE.version}
+      {SITE.repo && <> · <a href={SITE.repo} target="_blank" rel="noopener">Código fuente</a></>}
+    </p>
+  </section>
+
+  <section class="land-final">
+    <h2 class="mega-title small-mega"><span class="neon-gold">¿Una tirada?</span></h2>
+    <a class="btn btn-gold btn-xl btn-pulse" href="/">🎰 Entrar al casino</a>
+  </section>
+</Casino>
+
+<script>
+  import { trending, img, type Title } from '../lib/tmdb';
+  import { register, tileHTML } from '../lib/card';
+  import { SYMBOLS } from '../lib/genres';
+  import { rarityOf, RARITY, statusOf } from '../lib/rarity';
+  import { sfx } from '../lib/sfx';
+  import * as fx from '../lib/fx';
+  import { pick, rand, shuffle, sleep } from '../lib/util';
+
+  // ---------- Datos reales para el abanico, las rarezas y la caja ----------
+  let posters: Title[] = [];
+  trending()
+    .then((list) => {
+      posters = list.filter((t) => t.poster);
+      const fan = [...document.querySelectorAll<HTMLElement>('.fan-card')];
+      shuffle(posters.filter((t) => statusOf(t) === 'rated'))
+        .slice(0, fan.length)
+        .forEach((t, i) => {
+          const r = rarityOf(t.vote, t.votes);
+          register(t);
+          fan[i].className = `fan-card r-${r} holo`;
+          fan[i].dataset.titleKey = t.key;
+          fan[i].setAttribute('role', 'button');
+          fan[i].setAttribute('tabindex', '0');
+          fan[i].setAttribute('aria-label', `${t.title} · ⭐ ${t.vote.toFixed(1)}`);
+          fan[i].innerHTML = `<img src="${img(t.poster, 'w342')}" alt="">`;
+        });
+      for (const el of document.querySelectorAll<HTMLElement>('[data-sample]')) {
+        const t = posters.find((p) => statusOf(p) === 'rated' && rarityOf(p.vote, p.votes) === el.dataset.sample);
+        if (t) el.innerHTML = `<img src="${img(t.poster, 'w185')}" alt="${t.title}" title="${t.title} · ⭐ ${t.vote.toFixed(1)}">`;
+      }
+      fillCase();
+    })
+    .catch(() => {});
+
+  // ---------- Abanico de pósters ----------
+  {
+    const fanEl = document.getElementById('fan')!;
+    const stage = fanEl.querySelector<HTMLElement>('.fan-stage')!;
+    const slots = [...fanEl.querySelectorAll<HTMLElement>('.fan-slot')];
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Tarjeta activa: las demás se apartan hacia su lado para dejarla respirar
+    const activate = (slot: HTMLElement | null) => {
+      const k = slot ? Number(slot.dataset.i) : null;
+      fanEl.classList.toggle('has-active', k !== null);
+      for (const s of slots) {
+        const i = Number(s.dataset.i);
+        s.classList.toggle('is-active', s === slot);
+        s.style.setProperty('--push', k === null || i === k ? '0px' : `${Math.sign(i - k) * 46}px`);
+      }
+    };
+    slots.forEach((s) => {
+      s.addEventListener('pointerenter', () => activate(s));
+      s.addEventListener('focusin', () => activate(s));
+    });
+    fanEl.addEventListener('pointerleave', () => activate(null));
+    fanEl.addEventListener('focusout', (e) => !fanEl.contains(e.relatedTarget as Node) && activate(null));
+
+    // Inclinación 3D que sigue al puntero, suavizada (lerp) en cada fotograma
+    let tx = 0;
+    let ty = 0;
+    let cx = 0;
+    let cy = 0;
+    let raf = 0;
+    const loop = () => {
+      cx += (tx - cx) * 0.08;
+      cy += (ty - cy) * 0.08;
+      stage.style.setProperty('--tilt-x', `${cy.toFixed(2)}deg`);
+      stage.style.setProperty('--tilt-y', `${cx.toFixed(2)}deg`);
+      raf = Math.abs(tx - cx) + Math.abs(ty - cy) > 0.01 ? requestAnimationFrame(loop) : 0;
+    };
+    const kick = () => raf || (raf = requestAnimationFrame(loop));
+    if (!reduced) {
+      fanEl.addEventListener('pointermove', (e) => {
+        const r = fanEl.getBoundingClientRect();
+        tx = ((e.clientX - r.left) / r.width - 0.5) * 14;
+        ty = -((e.clientY - r.top) / r.height - 0.5) * 10;
+        kick();
+      });
+      fanEl.addEventListener('pointerleave', () => {
+        tx = ty = 0;
+        kick();
+      });
+    }
+  }
+
+  // ---------- Mini tragaperras ----------
+  const SYMS = SYMBOLS.slice(0, 7).map((s) => ({ e: s.emoji, n: s.short ?? s.name }));
+  const reels = [...document.querySelectorAll<HTMLElement>('.demo-reel')];
+  const symHTML = (s: { e: string; n: string }) => `<div class="sym"><span>${s.e}</span><small>${s.n}</small></div>`;
+  const vis = reels.map(() => [pick(SYMS), pick(SYMS), pick(SYMS)]);
+  const setStrip = (i: number, list: typeof SYMS) => {
+    const st = reels[i].querySelector<HTMLElement>('.strip')!;
+    st.style.transition = 'none';
+    st.style.transform = 'translateY(0)';
+    st.innerHTML = list.map(symHTML).join('');
+    return st;
+  };
+  reels.forEach((_, i) => setStrip(i, vis[i]));
+  let slotBusy = false;
+  document.getElementById('demo-slot-btn')!.addEventListener('click', async () => {
+    if (slotBusy) return;
+    slotBusy = true;
+    sfx.lever();
+    const res = reels.map(() => pick(SYMS));
+    const tick = setInterval(() => sfx.tick(), 80);
+    await Promise.all(
+      reels.map((reel, i) => {
+        const list = [...vis[i], ...Array.from({ length: 14 + i * 5 }, () => pick(SYMS)), res[i], pick(SYMS)];
+        const st = setStrip(i, list);
+        void st.offsetHeight;
+        const ms = 1000 + i * 400;
+        st.style.transition = `transform ${ms}ms cubic-bezier(.15,.85,.25,1.04)`;
+        st.style.transform = `translateY(${-(list.length - 3) * (reel.clientHeight / 3)}px)`;
+        reel.classList.add('spinning');
+        return sleep(ms + 30).then(() => {
+          reel.classList.remove('spinning');
+          vis[i] = list.slice(-3);
+          setStrip(i, vis[i]);
+          sfx.thud();
+        });
+      }),
+    );
+    clearInterval(tick);
+    const same = new Set(res.map((r) => r.e)).size;
+    const out = document.getElementById('demo-slot-out')!;
+    const names = [...new Set(res.map((r) => `${r.e} ${r.n}`))].join(' + ');
+    if (same === 1) {
+      sfx.jackpot();
+      fx.fireworks(1500);
+      out.innerHTML = `💥 <b>¡JACKPOT!</b> En el casino real: x10 fichas y un título top de ${names}.`;
+    } else if (same === 2) {
+      sfx.win();
+      fx.burst({ particleCount: 50 });
+      out.innerHTML = `✨ <b>¡Pareja!</b> Te tocaría un título que mezcle ${names}.`;
+    } else out.innerHTML = `🎬 Te tocaría un título de ${names}.`;
+    slotBusy = false;
+  });
+
+  // ---------- Mini ruleta ----------
+  const SEGS = [...SYMBOLS.slice(0, 6).map((s) => ({ e: s.emoji, n: s.short ?? s.name })), { e: '💀', n: 'QUIEBRA' }, { e: '💎', n: 'JACKPOT' }];
+  const COLORS = ['#c8102e', '#1b1030', '#c8102e', '#1b1030', '#c8102e', '#1b1030', '#050308', '#e6a700'];
+  const wheel = document.getElementById('demo-wheel')!;
+  const A = 360 / SEGS.length;
+  wheel.style.background = `conic-gradient(${SEGS.map((_, i) => `${COLORS[i]} ${i * A}deg ${(i + 1) * A}deg`).join(',')})`;
+  wheel.innerHTML = SEGS.map((s, i) => `<span style="--a:${i * A + A / 2}deg">${s.e}</span>`).join('');
+  let rot = 0;
+  let wheelBusy = false;
+  document.getElementById('demo-wheel-btn')!.addEventListener('click', async () => {
+    if (wheelBusy) return;
+    wheelBusy = true;
+    sfx.whoosh();
+    const idx = Math.floor(Math.random() * SEGS.length);
+    const desired = (360 - (idx * A + A / 2) + rand(-A * 0.3, A * 0.3) + 360) % 360;
+    rot += 360 * 5 + ((desired - (rot % 360) + 360) % 360);
+    wheel.style.transform = `rotate(${rot}deg)`;
+    const tick = setInterval(() => sfx.tick(), 110);
+    await sleep(3600);
+    clearInterval(tick);
+    const s = SEGS[idx];
+    const out = document.getElementById('demo-wheel-out')!;
+    if (s.n === 'QUIEBRA') {
+      sfx.lose();
+      fx.shake('sm');
+      out.innerHTML = '💀 <b>QUIEBRA.</b> La casa gana… esta vez.';
+    } else if (s.n === 'JACKPOT') {
+      sfx.jackpot();
+      fx.fireworks(1500);
+      out.innerHTML = '💎 <b>¡JACKPOT!</b> +400 fichas y un título de élite.';
+    } else {
+      sfx.win();
+      out.innerHTML = `${s.e} Ha salido <b>${s.n}</b>: te tocaría un título de ese género.`;
+    }
+    wheelBusy = false;
+  });
+
+  // ---------- Mini rasca ----------
+  const canvas = document.getElementById('demo-canvas') as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+  const symsEl = document.getElementById('demo-syms')!;
+  let scratching = false;
+  let last: { x: number; y: number } | null = null;
+  let moves = 0;
+  let done = false;
+  let ticket: string[] = [];
+  function newTicket() {
+    const pool = ['🍒', '🍋', '🔔', '⭐', '💎', '7️⃣'];
+    ticket = Math.random() < 0.35 ? Array(3).fill(pick(pool)) : [pick(pool), pick(pool), pick(pool)];
+    symsEl.innerHTML = ticket.map((s) => `<div>${s}</div>`).join('');
+    const r = canvas.getBoundingClientRect();
+    const dpr = devicePixelRatio || 1;
+    canvas.width = r.width * dpr;
+    canvas.height = r.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    const g = ctx.createLinearGradient(0, 0, r.width, r.height);
+    g.addColorStop(0, '#9c9cb4');
+    g.addColorStop(0.5, '#e9e9f3');
+    g.addColorStop(1, '#8a8aa6');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, r.width, r.height);
+    ctx.fillStyle = '#4a1f78';
+    ctx.font = '22px Bungee, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('¡RASCA AQUÍ!', r.width / 2, r.height / 2);
+    canvas.classList.remove('gone');
+    done = false;
+    moves = 0;
+    document.getElementById('demo-scratch-out')!.textContent = 'Rasca con el ratón o con el dedo.';
+  }
+  function finish() {
+    done = true;
+    canvas.classList.add('gone');
+    const out = document.getElementById('demo-scratch-out')!;
+    if (ticket[0] === ticket[1] && ticket[1] === ticket[2]) {
+      sfx.win();
+      fx.burst({ particleCount: 70 });
+      out.innerHTML = '🏆 <b>¡Premio!</b> En el casino real: fichas y el título del boleto, directo a tu botín.';
+    } else {
+      sfx.error();
+      out.innerHTML = '🎟️ Sin premio… pero el título de consolación sigue siendo tuyo si lo quieres.';
+    }
+  }
+  const pos = (e: PointerEvent) => {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  canvas.addEventListener('pointerdown', (e) => {
+    if (done) return;
+    scratching = true;
+    last = null;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointerup', () => (scratching = false));
+  canvas.addEventListener('pointermove', (e) => {
+    if (!scratching || done) return;
+    const p = pos(e);
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.lineWidth = 34;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(last?.x ?? p.x, last?.y ?? p.y);
+    ctx.lineTo(p.x, p.y + 0.01);
+    ctx.stroke();
+    last = p;
+    if (moves % 4 === 0) sfx.scratch();
+    if (++moves % 10 === 0) {
+      const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let clear = 0;
+      let total = 0;
+      for (let i = 3; i < d.length; i += 4 * 24) {
+        total++;
+        if (d[i] === 0) clear++;
+      }
+      if (clear / total > 0.5) finish();
+    }
+  });
+  document.getElementById('demo-scratch-btn')!.addEventListener('click', newTicket);
+  requestAnimationFrame(newTicket);
+
+  // ---------- Mini caja ----------
+  const strip = document.getElementById('demo-strip')!;
+  const caseWin = strip.parentElement!;
+  const WIN = 26;
+  let items: Title[] = [];
+  function fillCase() {
+    if (!posters.length) return;
+    items = Array.from({ length: 32 }, () => pick(posters));
+    strip.style.transition = 'none';
+    strip.style.transform = 'translateX(0)';
+    strip.innerHTML = items.map((t, i) => `<div class="case-item" data-i="${i}">${tileHTML(t, { open: false, size: 'w185' })}</div>`).join('');
+  }
+  let caseBusy = false;
+  document.getElementById('demo-case-btn')!.addEventListener('click', async () => {
+    if (caseBusy || !posters.length) return;
+    caseBusy = true;
+    fillCase();
+    void strip.offsetWidth;
+    const first = strip.firstElementChild as HTMLElement;
+    const itemW = first.offsetWidth + (parseFloat(getComputedStyle(strip).columnGap) || 0);
+    const offset = WIN * itemW + first.offsetWidth / 2 - caseWin.clientWidth / 2 + rand(-0.3, 0.3) * first.offsetWidth;
+    strip.style.transition = 'transform 4.5s cubic-bezier(.06,.72,.12,1)';
+    strip.style.transform = `translateX(${-offset}px)`;
+    const tick = setInterval(() => sfx.tick(), 90);
+    await sleep(4600);
+    clearInterval(tick);
+    const t = items[WIN];
+    const r = statusOf(t) === 'rated' ? rarityOf(t.vote, t.votes) : 'comun';
+    strip.querySelector(`[data-i="${WIN}"]`)!.classList.add('won');
+    fx.rarityBurst(r);
+    sfx.reveal();
+    document.getElementById('demo-case-out')!.innerHTML = `${RARITY[r].emoji} <b style="color:${RARITY[r].color}">${RARITY[r].label}</b>: ${t.title}`;
+    caseBusy = false;
+  });
+</script>

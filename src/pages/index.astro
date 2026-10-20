@@ -1,0 +1,116 @@
+---
+import Casino from '../layouts/Casino.astro';
+import { SITE } from '../site';
+
+// `cost` es opcional: lo que no es un juego (Mi Botín) no muestra precio y su botón dice "IR"
+const games: { href: string; icon: string; name: string; desc: string; cost?: string; color: string; cta?: string }[] = [
+  { href: '/tragaperras', icon: '🎰', name: 'Tragaperras', desc: 'Tres rodillos de géneros. Alinea iguales y gana fichas… y una peli.', cost: 'desde 50', color: '#ff2f55' },
+  { href: '/ruleta', icon: '🎡', name: 'Ruleta de Géneros', desc: 'Gira la rueda. ¿Comedia? ¿Terror? ¿QUIEBRA?', cost: '30', color: '#2bff88' },
+  { href: '/cajas', icon: '🎁', name: 'Cajas de Botín', desc: 'Abre cajas y consigue títulos Legendarios y Míticos.', cost: 'desde 40', color: '#ffc93c' },
+  { href: '/rasca', icon: '🎟️', name: 'Rasca y Gana', desc: 'Rasca el boleto. Tres iguales y te forras.', cost: '25', color: '#29f0ff' },
+  { href: '/mayor-menor', icon: '🃏', name: '¿Más o Menos?', desc: '¿Cuál tiene más nota? Dobla o nada.', cost: 'desde 25', color: '#ff2bd6' },
+  { href: '/botin', icon: '💰', name: 'Mi Botín', desc: 'Tu colección, y la ruleta de "¿qué veo hoy?".', color: '#8a3cff', cta: 'IR' },
+];
+---
+
+<Casino title="Lobby" active="lobby">
+  <section class="hero">
+    <p class="hero-kicker">✦ abierto 24/7 ✦ sin horario ✦ sin control ✦</p>
+    <h1 class="mega-title"><span class="neon-pink flicker">{SITE.logo[0]}</span> <span class="neon-gold">{SITE.logo[1]}</span></h1>
+    <p class="tagline">La casa siempre gana… <b>una peli que ver esta noche.</b></p>
+    <div class="hero-actions">
+      <button id="lucky" class="btn btn-gold btn-xl btn-pulse">🍀 Me siento con suerte <small>10 🪙</small></button>
+    </div>
+    <p class="hero-links"><a href="/landing">¿Qué es esto?</a> · <a href="/cuenta">Guarda tu partida en una cuenta</a></p>
+  </section>
+
+  <section class="games-grid">
+    {
+      games.map((g) => (
+        <a class="game-card" href={g.href} style={`--c:${g.color}`}>
+          <div class="game-icon">{g.icon}</div>
+          <h3>{g.name}</h3>
+          <p>{g.desc}</p>
+          <div class="game-foot">
+            {g.cost ? <span class="cost">🪙 {g.cost}</span> : <span />}
+            <span class="play">{g.cta ?? 'JUGAR'} ▶</span>
+          </div>
+        </a>
+      ))
+    }
+  </section>
+
+  <section class="lobby-trending">
+    <h2 class="section-title">🔥 En llamas esta semana</h2>
+    <div class="marquee" id="marquee"><div class="marquee-track" id="marquee-track"></div></div>
+  </section>
+
+  <section class="player-card" id="player"></section>
+</Casino>
+
+<script>
+  import { getState, spend } from '../lib/store';
+  import { luckyPick, pickType, trending } from '../lib/tmdb';
+  import { showTitle, tileHTML } from '../lib/card';
+  import { ACHIEVEMENTS } from '../lib/achievements';
+  import { RARITIES, RARITY } from '../lib/rarity';
+  import { sfx } from '../lib/sfx';
+  import * as fx from '../lib/fx';
+  import { fmt } from '../lib/util';
+
+  // Inclinación 3D de las tarjetas de juego
+  document.querySelectorAll<HTMLElement>('.game-card').forEach((card) => {
+    card.addEventListener('pointermove', (e) => {
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      card.style.transform = `perspective(700px) rotateY(${x * 14}deg) rotateX(${-y * 14}deg) translateY(-6px)`;
+      card.style.setProperty('--mx', `${(x + 0.5) * 100}%`);
+      card.style.setProperty('--my', `${(y + 0.5) * 100}%`);
+    });
+    card.addEventListener('pointerleave', () => (card.style.transform = ''));
+    card.addEventListener('pointerenter', () => sfx.tick());
+  });
+
+  async function loadTrending() {
+    const track = document.getElementById('marquee-track')!;
+    try {
+      const list = await trending();
+      const html = list.map((t) => tileHTML(t)).join('');
+      track.innerHTML = html + html;
+    } catch {
+      track.innerHTML = '<p class="muted">No se pudo cargar TMDB. ¿Está bien el token en <code>.env</code>?</p>';
+    }
+  }
+  loadTrending();
+  window.addEventListener('casino:change', () => {
+    renderPlayer();
+  });
+
+  const lucky = document.getElementById('lucky') as HTMLButtonElement;
+  lucky.addEventListener('click', async () => {
+    if (!spend(10)) return;
+    lucky.disabled = true;
+    sfx.whoosh();
+    fx.shake('sm');
+    try {
+      const t = await luckyPick(pickType(), { minVote: 6.8, minVotes: 300 }, 30);
+      if (t) await showTitle(t, { headline: '🍀 ¡La suerte ha hablado!', reveal: true, prize: true });
+    } finally {
+      lucky.disabled = false;
+    }
+  });
+
+  function renderPlayer() {
+    const s = getState();
+    const unlocked = ACHIEVEMENTS.filter((a) => s.achievements[a.id]).length;
+    const counts = RARITIES.map((r) => `<span class="rc r-${r}">${RARITY[r].emoji} ${s.botin.filter((b) => b.rarity === r).length}</span>`).join('');
+    document.getElementById('player')!.innerHTML = `
+      <div><small>NIVEL</small><b>${s.level}</b></div>
+      <div><small>FICHAS</small><b>${fmt(s.coins)}</b></div>
+      <div><small>BOTÍN</small><b>${s.botin.length}</b><span class="rcs">${counts}</span></div>
+      <div><small>LOGROS</small><b>${unlocked}/${ACHIEVEMENTS.length}</b></div>
+      <div><small>RACHA DIARIA</small><b>${s.daily.streak} 🔥</b></div>`;
+  }
+  renderPlayer();
+</script>

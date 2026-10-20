@@ -1,0 +1,55 @@
+name: Release
+
+# Crea la Release de GitHub al subir una etiqueta de versión:
+#   git tag v0.9.0-beta.1 && git push origin v0.9.0-beta.1
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Comprobar que la etiqueta coincide con package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p 'require("./package.json").version')
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::La etiqueta v$tag no coincide con package.json ($pkg). Sube la versión en package.json (npm version …) antes de etiquetar."
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+
+      - name: Notas desde CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # Sección "## [versión]" hasta la siguiente "## ["
+          awk -v head="## [$version]" '
+            index($0, head) == 1 { on = 1; next }
+            on && index($0, "## [") == 1 { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Sin notas en CHANGELOG.md para $version." > notes.md
+          cat notes.md
+
+      - name: Crear la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=""
+          case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md $flags

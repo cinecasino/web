@@ -1,0 +1,191 @@
+---
+import Casino from '../layouts/Casino.astro';
+
+export const prerender = false;
+
+const user = Astro.locals.user;
+const rawNext = Astro.url.searchParams.get('next') ?? '/';
+// Solo rutas internas, para no servir de redirección abierta
+const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/';
+const since = user ? new Date(user.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+---
+
+<Casino title="Mi cuenta" variant="page">
+  <section class="account">
+    {
+      user ? (
+        <>
+          <div class="acc-card acc-hero">
+            <div class="acc-avatar">🎩</div>
+            <div>
+              <h1>{user.username}</h1>
+              <p class="muted">
+                {user.email} · {user.role === 'admin' ? '🛠️ Administrador' : '🎲 Jugador'} · desde {since}
+              </p>
+            </div>
+            <div class="acc-hero-actions">
+              {user.role === 'admin' && <a class="btn btn-ghost" href="/admin">🛠️ Panel de administración</a>}
+              <button class="btn btn-red" id="logout">Cerrar sesión</button>
+            </div>
+          </div>
+
+          <div class="acc-grid">
+            <div class="acc-card">
+              <h2>☁️ Tu partida en la nube</h2>
+              <p>Tus fichas, nivel, logros y botín se guardan solos en tu cuenta. Entra desde otro dispositivo y lo tendrás todo.</p>
+              <div class="acc-stats" id="acc-stats" />
+              <a class="btn btn-gold" href="/">🎰 Seguir jugando</a>
+            </div>
+
+            <form class="acc-card" id="pw-form">
+              <h2>🔑 Cambiar contraseña</h2>
+              <label>Contraseña actual<input type="password" name="current" autocomplete="current-password" required /></label>
+              <label>Nueva contraseña (mín. 8)<input type="password" name="next" autocomplete="new-password" minlength="8" required /></label>
+              <p class="form-msg" data-msg />
+              <button class="btn btn-gold">Guardar</button>
+              <p class="muted small">Al cambiarla se cierran tus otras sesiones abiertas.</p>
+            </form>
+
+            <div class="acc-card">
+              <h2>🛡️ Tus datos</h2>
+              <p>Puedes descargar todo lo que guardamos sobre ti o borrar la cuenta para siempre. Más detalles en la <a href="/privacidad">política de privacidad</a>.</p>
+              <div class="acc-actions">
+                <a class="btn btn-ghost" href="/api/account/export">⬇ Descargar mis datos</a>
+                <button class="btn btn-red" id="delete-account">🗑️ Borrar mi cuenta</button>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div class="auth-box">
+          <h1 class="page-title">👤 TU CUENTA</h1>
+          <p class="muted center">
+            Opcional: sin cuenta puedes jugar igual, pero tu partida solo vive en este navegador. Con cuenta se guarda en la nube y la tienes en todos tus dispositivos.
+          </p>
+          <div class="auth-tabs" role="tablist">
+            <button class="chip active" data-tab="login" role="tab">Entrar</button>
+            <button class="chip" data-tab="register" role="tab">Crear cuenta</button>
+          </div>
+
+          <form class="acc-card auth-form" data-form="login">
+            <label>Email o nombre de jugador<input name="login" autocomplete="username" required /></label>
+            <label>Contraseña<input type="password" name="password" autocomplete="current-password" required /></label>
+            <p class="form-msg" data-msg />
+            <button class="btn btn-gold btn-xl">🎰 Entrar</button>
+            <p class="muted small">¿Olvidaste la contraseña? Pide a la administración una temporal.</p>
+          </form>
+
+          <form class="acc-card auth-form" data-form="register" hidden>
+            <label>Nombre de jugador<input name="username" autocomplete="nickname" minlength="3" maxlength="20" required /></label>
+            <label>Email<input type="email" name="email" autocomplete="email" required /></label>
+            <label>Contraseña (mín. 8)<input type="password" name="password" autocomplete="new-password" minlength="8" required /></label>
+            <label class="check">
+              <input type="checkbox" name="consent" required />
+              <span>He leído y acepto la <a href="/privacidad" target="_blank">política de privacidad</a>.</span>
+            </label>
+            <p class="form-msg" data-msg />
+            <button class="btn btn-gold btn-xl">✨ Crear cuenta</button>
+            <p class="muted small">Tu progreso como invitado se puede pasar a la cuenta al registrarte.</p>
+          </form>
+        </div>
+      )
+    }
+  </section>
+  <input type="hidden" id="next" value={next} />
+</Casino>
+
+<script>
+  import { api, logout } from '../lib/account';
+  import { getState } from '../lib/store';
+  import { openModal, closeModal } from '../lib/card';
+  import * as fx from '../lib/fx';
+  import { sfx } from '../lib/sfx';
+  import { fmt } from '../lib/util';
+
+  const next = (document.getElementById('next') as HTMLInputElement).value;
+  const formData = (f: HTMLFormElement) => Object.fromEntries(new FormData(f).entries()) as Record<string, string>;
+  const msg = (f: HTMLElement, text: string, ok = false) => {
+    const m = f.querySelector<HTMLElement>('[data-msg]')!;
+    m.textContent = text;
+    m.className = `form-msg ${ok ? 'ok' : 'err'}`;
+  };
+
+  // --- Invitado: entrar / registrarse ---
+  document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((tab) =>
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('[data-tab]').forEach((t) => t.classList.toggle('active', t === tab));
+      document.querySelectorAll<HTMLElement>('[data-form]').forEach((f) => (f.hidden = f.dataset.form !== tab.dataset.tab));
+    }),
+  );
+  if (location.hash === '#registro') document.querySelector<HTMLButtonElement>('[data-tab="register"]')?.click();
+
+  document.querySelectorAll<HTMLFormElement>('[data-form]').forEach((form) =>
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('button')!;
+      btn.disabled = true;
+      const d = formData(form);
+      const register = form.dataset.form === 'register';
+      const r = await api(register ? '/api/auth/register' : '/api/auth/login', {
+        method: 'POST',
+        json: register ? { username: d.username, email: d.email, password: d.password, consent: d.consent === 'on' } : d,
+      }).catch(() => ({ ok: false, status: 0, data: { error: 'Sin conexión con el servidor.' } }));
+      btn.disabled = false;
+      if (!r.ok) {
+        sfx.error();
+        fx.shake('sm');
+        return msg(form, r.data?.error ?? 'Algo ha fallado.');
+      }
+      sfx.jackpot();
+      fx.burst();
+      msg(form, register ? '¡Cuenta creada! Entrando al casino…' : '¡Bienvenido de vuelta!', true);
+      setTimeout(() => (location.href = next), 900);
+    }),
+  );
+
+  // --- Con sesión ---
+  const stats = document.getElementById('acc-stats');
+  function renderStats() {
+    if (!stats) return;
+    const s = getState();
+    stats.innerHTML = `<div><small>NIVEL</small><b>${s.level}</b></div><div><small>FICHAS</small><b>${fmt(s.coins)}</b></div><div><small>BOTÍN</small><b>${s.botin.length}</b></div>`;
+  }
+  renderStats();
+  window.addEventListener('casino:change', renderStats);
+
+  document.getElementById('logout')?.addEventListener('click', async () => {
+    await logout();
+    location.href = '/';
+  });
+
+  const pwForm = document.getElementById('pw-form') as HTMLFormElement | null;
+  pwForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const r = await api('/api/account/password', { method: 'POST', json: formData(pwForm) });
+    if (r.ok) {
+      pwForm.reset();
+      sfx.win();
+    } else sfx.error();
+    msg(pwForm, r.ok ? 'Contraseña cambiada. ✅' : r.data?.error ?? 'Error', r.ok);
+  });
+
+  document.getElementById('delete-account')?.addEventListener('click', () => {
+    const inner = openModal(`
+      <form class="danger-box" id="del-form">
+        <h2>🗑️ Borrar cuenta</h2>
+        <p>Se borrarán para siempre tu cuenta, tu partida en la nube y tus sesiones. No hay vuelta atrás.</p>
+        <label>Escribe tu contraseña para confirmar<input type="password" name="password" autocomplete="current-password" required></label>
+        <p class="form-msg" data-msg></p>
+        <div class="acc-actions"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-red">Borrar definitivamente</button></div>
+      </form>`);
+    const f = inner.querySelector('#del-form') as HTMLFormElement;
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const r = await api('/api/account/delete', { method: 'POST', json: formData(f) });
+      if (!r.ok) return msg(f, r.data?.error ?? 'Error');
+      closeModal();
+      await logout().catch(() => {});
+      location.href = '/';
+    });
+  });
+</script>

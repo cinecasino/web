@@ -1,0 +1,213 @@
+---
+import Casino from '../layouts/Casino.astro';
+import { BOXES } from '../lib/boxes';
+import { RARITIES, RARITY } from '../lib/rarity';
+---
+
+<Casino title="Cajas de Botín" active="cajas">
+  <section class="case-opener" id="opener">
+    <div class="case-window" id="case-window">
+      <div class="case-strip" id="case-strip"></div>
+      <div class="case-marker"></div>
+    </div>
+    <div class="case-status" id="case-status">Elige una caja. Cada título que toque va directo a tu botín. 🎁</div>
+  </section>
+
+  <section class="boxes-grid">
+    {
+      BOXES.map((b) => (
+        <div class="box-card" style={`--c:${b.color}`}>
+          <div class="box-icon">{b.icon}</div>
+          <h3>{b.name}</h3>
+          <div class="odds">
+            {RARITIES.filter((r) => b.odds[r] > 0).map((r) => (
+              <div class="odd" style={`--rc:${RARITY[r].color}`}>
+                <span>{RARITY[r].label}</span>
+                <i style={`width:${b.odds[r]}%`} />
+                <b>{b.odds[r]}%</b>
+              </div>
+            ))}
+          </div>
+          <button class="btn btn-gold open-box" data-box={b.id}>
+            ABRIR · {b.price} 🪙
+          </button>
+        </div>
+      ))
+    }
+  </section>
+  <p class="muted small center">Valor en fichas por rareza: Común 10 · Rara 30 · Épica 80 · Legendaria 250 · Mítica 600. Duplicados: +50% del precio de la caja.</p>
+</Casino>
+
+<script>
+  import { spend, earn, stat, inBotin, addToBotin } from '../lib/store';
+  import { randomDiscover, topRated, typesForMode, type Title } from '../lib/tmdb';
+  import { showTitle, tileHTML } from '../lib/card';
+  import { BOXES, BOX_VALUE } from '../lib/boxes';
+  import { rarityOf, rarityRank, RARITIES, RARITY, type Rarity } from '../lib/rarity';
+  import { sfx } from '../lib/sfx';
+  import * as fx from '../lib/fx';
+  import { fmt, pick, rand, randInt, sleep, weighted } from '../lib/util';
+
+  const ITEMS = 60;
+  const WIN = 52;
+  const SPIN_MS = 7000;
+
+  const strip = document.getElementById('case-strip')!;
+  const win = document.getElementById('case-window')!;
+  const status = document.getElementById('case-status')!;
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>('.open-box')];
+
+  let pool: Title[] = [];
+  let poolMode = '';
+  let opening = false;
+  let pendingAward: (() => void) | null = null;
+  window.addEventListener('pagehide', () => pendingAward?.());
+
+  async function fillPool() {
+    const types = typesForMode();
+    const jobs = types.flatMap((t) => [
+      randomDiscover(t, { minVotes: 100 }, 60),
+      randomDiscover(t, { minVotes: 150, maxVote: 6.3 }, 20),
+      randomDiscover(t, { minVotes: 200, minVote: 6.4, maxVote: 7.1 }, 20),
+      randomDiscover(t, { minVote: 7.1, minVotes: 300 }, 20),
+      topRated(t, randInt(1, 12)),
+      topRated(t, randInt(1, 4)),
+    ]);
+    const res = await Promise.allSettled(jobs);
+    const map = new Map(pool.map((t) => [t.key, t]));
+    res.forEach((r) => r.status === 'fulfilled' && r.value.forEach((t) => map.set(t.key, t)));
+    pool = [...map.values()];
+    poolMode = types.join();
+  }
+
+  const ofRarity = (r: Rarity) => pool.filter((t) => rarityOf(t.vote, t.votes) === r);
+
+  function pickWinner(r: Rarity): Title | null {
+    const order = [0, -1, 1, -2, 2, -3, 3, -4, 4];
+    for (const d of order) {
+      const rr = RARITIES[rarityRank(r) + d];
+      if (!rr) continue;
+      const list = ofRarity(rr);
+      if (!list.length) continue;
+      const fresh = list.filter((t) => !inBotin(t.key));
+      return pick(fresh.length ? fresh : list);
+    }
+    return null;
+  }
+
+  function filler(odds: Record<Rarity, number>): Title {
+    // Se enseñan más rarezas altas de las que tocan de verdad. Así funciona el gancho.
+    const r = weighted(RARITIES, (x) => odds[x] + (rarityRank(x) >= 3 ? 6 : 2));
+    const list = ofRarity(r);
+    return list.length ? pick(list) : pick(pool);
+  }
+
+  async function open(boxId: string) {
+    if (opening) return;
+    const box = BOXES.find((b) => b.id === boxId)!;
+    if (!spend(box.price)) return;
+    opening = true;
+    buttons.forEach((b) => (b.disabled = true));
+    stat('boxes');
+    status.innerHTML = `${box.icon} Abriendo <b>${box.name}</b>…`;
+    sfx.whoosh();
+
+    if (!pool.length || poolMode !== typesForMode().join()) {
+      status.innerHTML = '📡 Llenando la caja de títulos…';
+      pool = [];
+      await fillPool().catch(() => {});
+    }
+    const rolled = weighted(RARITIES, (r) => box.odds[r]);
+    const winner = pickWinner(rolled);
+    if (!winner) {
+      fx.toast('No se pudo cargar TMDB. Te devolvemos las fichas.', { icon: '📡' });
+      earn(box.price);
+      done();
+      return;
+    }
+    const wr = rarityOf(winner.vote, winner.votes);
+    const dup = inBotin(winner.key);
+    const value = BOX_VALUE[wr] + (dup ? Math.round(box.price * 0.5) : 0);
+    // Si sales de la página a mitad de la animación, el premio se cobra igual
+    pendingAward = () => {
+      pendingAward = null;
+      earn(value);
+      if (!dup) addToBotin(winner);
+    };
+
+    const items: Title[] = Array.from({ length: ITEMS }, () => filler(box.odds));
+    items[WIN] = winner;
+    // Casi-casi: un mítico/legendario justo al lado del premio
+    if (rarityRank(wr) < 3 && Math.random() < 0.65) {
+      const tease = ofRarity('mitica').concat(ofRarity('legendaria')).filter((t) => t.key !== winner.key);
+      if (tease.length) items[WIN + (Math.random() < 0.5 ? 1 : -1)] = pick(tease);
+    }
+    strip.classList.remove('idle');
+    strip.innerHTML = items.map((t, i) => `<div class="case-item" data-i="${i}">${tileHTML(t, { open: false, size: 'w185' })}</div>`).join('');
+    strip.style.transition = 'none';
+    strip.style.transform = 'translateX(0)';
+    void strip.offsetWidth;
+
+    const first = strip.firstElementChild as HTMLElement;
+    const gap = parseFloat(getComputedStyle(strip).columnGap) || 0;
+    const itemW = first.offsetWidth + gap;
+    const offset = WIN * itemW + first.offsetWidth / 2 - win.clientWidth / 2 + rand(-0.4, 0.4) * first.offsetWidth;
+    win.classList.add('rolling');
+    strip.style.transition = `transform ${SPIN_MS}ms cubic-bezier(.06,.72,.12,1)`;
+    strip.style.transform = `translateX(${-offset}px)`;
+
+    let lastIdx = -1;
+    let rolling = true;
+    const loop = () => {
+      if (!rolling) return;
+      const x = -new DOMMatrix(getComputedStyle(strip).transform).m41;
+      const idx = Math.floor((x + win.clientWidth / 2) / itemW);
+      if (idx !== lastIdx) {
+        lastIdx = idx;
+        sfx.tick();
+      }
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+    setTimeout(() => sfx.drumroll(1800), SPIN_MS - 2000);
+
+    await sleep(SPIN_MS + 150);
+    rolling = false;
+    win.classList.remove('rolling');
+    const wonEl = strip.querySelector(`[data-i="${WIN}"]`)!;
+    wonEl.classList.add('won');
+    fx.rarityBurst(wr);
+    sfx.reveal();
+    if (rarityRank(wr) >= 3) {
+      sfx.jackpot();
+      fx.shake('lg');
+    } else sfx.win();
+
+    pendingAward?.();
+    status.innerHTML = `${RARITY[wr].emoji} <b style="color:${RARITY[wr].color}">${RARITY[wr].label}</b> · ${winner.title} · +${fmt(value)} 🪙${dup ? ' (¡duplicado!)' : ''}`;
+    if (rarityRank(wr) >= 3) await fx.banner(RARITY[wr].label.toUpperCase(), winner.title, RARITY[wr].color, 1800);
+    else await sleep(700);
+
+    showTitle(winner, { headline: `${box.icon} ${box.name}: ¡${RARITY[wr].label}!${dup ? ' · Duplicado' : ''}` });
+    pool = pool.filter((t) => t.key !== winner.key);
+    done();
+    if (pool.length < 40) fillPool().catch(() => {});
+  }
+
+  function done() {
+    opening = false;
+    buttons.forEach((b) => (b.disabled = false));
+  }
+
+  buttons.forEach((b) => b.addEventListener('click', () => open(b.dataset.box!)));
+  document.querySelectorAll<HTMLElement>('.box-card').forEach((c) => c.addEventListener('pointerenter', () => sfx.tick()));
+
+  // Tira de muestra mientras esperas
+  fillPool()
+    .then(() => {
+      if (opening) return;
+      strip.innerHTML = Array.from({ length: 14 }, () => `<div class="case-item">${tileHTML(pick(pool), { open: false, size: 'w185' })}</div>`).join('');
+      strip.classList.add('idle');
+    })
+    .catch(() => {});
+</script>

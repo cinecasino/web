@@ -1,0 +1,7 @@
+# Saltos de línea LF en el repo (los runners de GitHub son Linux)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

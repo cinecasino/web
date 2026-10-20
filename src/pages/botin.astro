@@ -1,0 +1,225 @@
+---
+import Casino from '../layouts/Casino.astro';
+---
+
+<Casino title="Mi Botín" active="botin">
+  <section class="botin">
+    <h1 class="page-title">💰 MI BOTÍN</h1>
+    <div class="botin-summary" id="summary"></div>
+
+    <div class="botin-cta">
+      <button class="btn btn-gold btn-xl btn-pulse" id="pick-tonight">🎲 ¿QUÉ VEO HOY?</button>
+      <p class="muted small">Elige al azar entre los pendientes que estés viendo con el filtro actual.</p>
+    </div>
+
+    <div class="filters" id="filters">
+      <div class="chips" data-group="status">
+        <button class="chip active" data-v="all">Todo</button>
+        <button class="chip" data-v="pending">⏳ Pendientes</button>
+        <button class="chip" data-v="seen">✅ Vistas</button>
+      </div>
+      <div class="chips" data-group="type">
+        <button class="chip active" data-v="all">🎬+📺</button>
+        <button class="chip" data-v="movie">🎬 Pelis</button>
+        <button class="chip" data-v="tv">📺 Series</button>
+      </div>
+      <div class="chips" data-group="rarity">
+        <button class="chip active" data-v="all">Todas</button>
+        <button class="chip" data-v="comun">⚪</button>
+        <button class="chip" data-v="rara">🔵</button>
+        <button class="chip" data-v="epica">🟣</button>
+        <button class="chip" data-v="legendaria">🟠</button>
+        <button class="chip" data-v="mitica">🌈</button>
+        <button class="chip" data-v="upcoming" title="Próximamente">🔮</button>
+      </div>
+      <select id="sort" class="select">
+        <option value="recent">Más recientes</option>
+        <option value="vote">Mejor nota</option>
+        <option value="rarity">Rareza</option>
+        <option value="title">A-Z</option>
+      </select>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <details class="data-tools">
+      <summary>⚙️ Copia de seguridad</summary>
+      <div class="data-row">
+        <button class="btn btn-ghost" id="export">⬇ Exportar partida</button>
+        <label class="btn btn-ghost">⬆ Importar partida<input type="file" id="import" accept="application/json" hidden /></label>
+        <button class="btn btn-red" id="reset">🗑️ Borrar todo</button>
+      </div>
+    </details>
+  </section>
+
+  <div class="picker" id="picker" hidden>
+    <div class="picker-frame" id="picker-frame"><img id="picker-img" alt="" /></div>
+    <h2 id="picker-title"></h2>
+  </div>
+</Casino>
+
+<script>
+  import { exportData, getState, importData, markSeen, removeFromBotin, resetAll, type Saved } from '../lib/store';
+  import { fromSaved, showTitle, tileHTML } from '../lib/card';
+  import { img } from '../lib/tmdb';
+  import { RARITIES, RARITY, rarityRank, STATUS, statusOf } from '../lib/rarity';
+  import { sfx } from '../lib/sfx';
+  import * as fx from '../lib/fx';
+  import { esc, pick, sleep } from '../lib/util';
+
+  const filters = { status: 'all', type: 'all', rarity: 'all' };
+
+  /** Categoría para filtros y resumen: rareza, o "upcoming"/"unrated" si aún no tiene nota fiable. */
+  const cat = (b: Saved): string => (statusOf(b) === 'rated' ? b.rarity : statusOf(b));
+  const isUpcoming = (b: Saved) => statusOf(b) === 'upcoming';
+  const grid = document.getElementById('grid')!;
+  const sortSel = document.getElementById('sort') as HTMLSelectElement;
+
+  function visible(): Saved[] {
+    const s = getState();
+    let list = s.botin.filter(
+      (b) =>
+        (filters.status === 'all' || (filters.status === 'seen' ? b.seen : !b.seen)) &&
+        (filters.type === 'all' || b.type === filters.type) &&
+        (filters.rarity === 'all' || cat(b) === filters.rarity),
+    );
+    const sort = sortSel.value;
+    if (sort === 'vote') list = [...list].sort((a, b) => b.vote - a.vote);
+    if (sort === 'rarity') list = [...list].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || b.vote - a.vote);
+    if (sort === 'title') list = [...list].sort((a, b) => a.title.localeCompare(b.title, 'es'));
+    return list;
+  }
+
+  function render() {
+    const s = getState();
+    const total = s.botin.length;
+    const seen = s.botin.filter((b) => b.seen).length;
+    document.getElementById('summary')!.innerHTML = `
+      <div class="sum-big"><b>${total}</b><small>títulos</small></div>
+      <div class="sum-big"><b>${total - seen}</b><small>pendientes</small></div>
+      <div class="sum-big"><b>${seen}</b><small>vistas</small></div>
+      <div class="sum-rarities">${[
+        ...RARITIES.map((r) => ({ k: r as string, label: `${RARITY[r].emoji} ${RARITY[r].label}`, color: RARITY[r].color })),
+        { k: 'upcoming', label: `${STATUS.upcoming.emoji} ${STATUS.upcoming.label}`, color: '#29f0ff' },
+        { k: 'unrated', label: `${STATUS.unrated.emoji} ${STATUS.unrated.label}`, color: '#6e5a8f' },
+      ]
+        .map(({ k, label, color }) => {
+          const n = s.botin.filter((b) => cat(b) === k).length;
+          if (!n && (k === 'upcoming' || k === 'unrated')) return '';
+          return `<div class="sum-r" style="--rc:${color}"><span>${label}</span><i style="width:${total ? (n / total) * 100 : 0}%"></i><b>${n}</b></div>`;
+        })
+        .join('')}</div>`;
+
+    const list = visible();
+    if (!list.length) {
+      grid.innerHTML = total
+        ? '<p class="muted center">Nada con estos filtros.</p>'
+        : '<div class="empty"><div>🕳️</div><p>Tu botín está vacío.</p><a class="btn btn-gold" href="/tragaperras">🎰 Ve a ganar algo</a></div>';
+      return;
+    }
+    grid.innerHTML = list
+      .map((b) =>
+        tileHTML(fromSaved(b), {
+          cls: b.seen ? 'is-seen' : '',
+          extra: `${b.seen ? '<span class="seen-stamp">VISTA</span>' : ''}
+            <div class="tile-actions" data-noopen>
+              ${b.seen || isUpcoming(b) ? '' : `<button class="mini" data-act="seen" data-key="${b.key}" title="Marcar como vista">👁️</button>`}
+              <button class="mini" data-act="remove" data-key="${b.key}" title="Quitar del botín">🗑️</button>
+            </div>`,
+        }),
+      )
+      .join('');
+  }
+
+  grid.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-act]');
+    if (!btn) return;
+    const item = getState().botin.find((b) => b.key === btn.dataset.key);
+    if (!item) return;
+    if (btn.dataset.act === 'seen') {
+      const coins = markSeen(item);
+      sfx.coins(5);
+      fx.floatFrom(btn, `+${coins} 🪙`, 'pos');
+      fx.coinRain(12);
+    } else if (confirm(`¿Quitar "${item.title}" del botín?`)) {
+      removeFromBotin(item.key);
+      sfx.lose();
+    }
+  });
+
+  document.getElementById('filters')!.addEventListener('click', (e) => {
+    const chip = (e.target as HTMLElement).closest<HTMLButtonElement>('.chip');
+    if (!chip) return;
+    const group = chip.parentElement!.dataset.group as keyof typeof filters;
+    filters[group] = chip.dataset.v!;
+    chip.parentElement!.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', c === chip));
+    render();
+  });
+  sortSel.addEventListener('change', render);
+  window.addEventListener('casino:change', render);
+
+  // ¿Qué veo hoy? Tragaperras de un solo rodillo con tus pendientes
+  const picker = document.getElementById('picker')!;
+  const pImg = document.getElementById('picker-img') as HTMLImageElement;
+  const pTitle = document.getElementById('picker-title')!;
+  const pFrame = document.getElementById('picker-frame')!;
+  document.getElementById('pick-tonight')!.addEventListener('click', async () => {
+    const pool = visible().filter((b) => !b.seen && !isUpcoming(b));
+    if (pool.length < 2) {
+      fx.toast(pool.length ? `Solo tienes uno pendiente ya estrenado: <b>${esc(pool[0].title)}</b>. ¡Decidido!` : 'No tienes pendientes estrenados con este filtro. ¡A jugar!', { icon: '🤷' });
+      return;
+    }
+    pool.forEach((b) => (new Image().src = img(b.poster, 'w500')));
+    picker.hidden = false;
+    pFrame.classList.remove('landed');
+    pTitle.className = '';
+    let delay = 45;
+    let current = pool[0];
+    while (delay < 420) {
+      let next = pick(pool);
+      while (next === current) next = pick(pool);
+      current = next;
+      pImg.src = img(current.poster, 'w500');
+      pTitle.textContent = current.title;
+      pFrame.className = `picker-frame r-${current.rarity}`;
+      sfx.tick();
+      await sleep(delay);
+      delay *= 1.12;
+    }
+    pFrame.classList.add('landed');
+    pTitle.className = 'landed';
+    sfx.jackpot();
+    fx.rarityBurst(current.rarity);
+    fx.burst({ particleCount: 160, spread: 110 });
+    await sleep(1600);
+    picker.hidden = true;
+    showTitle(fromSaved(current), { headline: '🍿 Esta noche toca…' });
+  });
+
+  document.getElementById('export')!.addEventListener('click', () => {
+    const blob = new Blob([exportData()], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `cine-casino-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  document.getElementById('import')!.addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    try {
+      importData(await file.text());
+      fx.toast('Partida importada. 🎉', { icon: '⬆' });
+    } catch (err) {
+      fx.toast(`No se pudo importar: ${esc(String((err as Error).message))}`, { icon: '⚠️', color: 'var(--red)' });
+    }
+  });
+  document.getElementById('reset')!.addEventListener('click', () => {
+    if (confirm('¿Seguro? Se borran fichas, nivel, botín y logros. No hay vuelta atrás.')) {
+      resetAll();
+      fx.toast('Partida reiniciada. 500 fichas nuevas. Que empiece el vicio.', { icon: '🔄' });
+    }
+  });
+
+  render();
+</script>

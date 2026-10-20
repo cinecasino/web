@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Un push nuevo a la misma rama/PR cancela la ejecución anterior
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Tipos, compilación y prueba de humo
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Sin secretos: la base de datos es un archivo temporal y TMDB no hace falta para estas comprobaciones
+      DATABASE_URL: file:data/ci.db
+      ADMIN_EMAILS: ci@example.com
+      HOST: 127.0.0.1
+      PORT: 4321
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Comprobar tipos
+        run: npm run check
+
+      - name: Compilar
+        run: npm run build
+
+      - name: Arrancar el servidor
+        run: |
+          npm start > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf "http://$HOST:$PORT/api/auth/me" > /dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::El servidor no arrancó"; cat server.log; exit 1
+
+      - name: Prueba de humo
+        run: |
+          set -euo pipefail
+          base="http://$HOST:$PORT"
+          ok() { echo "✅ $1"; }
+          fail() { echo "::error::$1"; cat server.log; exit 1; }
+
+          for path in / /landing /tragaperras /ruleta /cajas /rasca /mayor-menor /botin /logros /cuenta /privacidad /cookies /offline /manifest.webmanifest /sw.js; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$base$path")
+            [ "$code" = 200 ] && ok "$path → 200" || fail "$path → $code"
+          done
+
+          curl -s "$base/manifest.webmanifest" | node -e 'const m=JSON.parse(require("fs").readFileSync(0));if(!m.name||m.icons.length<3)process.exit(1)' \
+            && ok "manifest válido" || fail "manifest inválido"
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$base/admin")
+          [ "$code" = 302 ] && ok "/admin sin sesión redirige" || fail "/admin sin sesión → $code"
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/admin/users")
+          [ "$code" = 403 ] && ok "/api/admin sin sesión → 403" || fail "/api/admin → $code"
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/tmdb/account/1")
+          [ "$code" = 404 ] && ok "proxy TMDB bloquea rutas fuera de la lista" || fail "proxy TMDB → $code"
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Origin: https://evil.example' -H 'Sec-Fetch-Site: cross-site' "$base/api/auth/logout")
+          [ "$code" = 403 ] && ok "CSRF bloqueado" || fail "CSRF → $code"
+
+          body='{"email":"ci@example.com","username":"ci_bot","password":"ci-password-123","consent":true}'
+          code=$(curl -s -o /dev/null -w '%{http_code}' -c jar.txt -H 'Content-Type: application/json' -d "$body" "$base/api/auth/register")
+          [ "$code" = 201 ] && ok "registro" || fail "registro → $code"
+          curl -s -b jar.txt "$base/api/auth/me" | grep -q '"role":"admin"' && ok "sesión + rol admin por ADMIN_EMAILS" || fail "sesión/rol"
+          code=$(curl -s -o /dev/null -w '%{http_code}' -b jar.txt "$base/admin")
+          [ "$code" = 200 ] && ok "panel de admin con sesión" || fail "panel → $code"
+
+      - name: Registro del servidor
+        if: always()
+        run: cat server.log || true

@@ -1,0 +1,15 @@
+name: 💡 Idea o mejora
+description: Propón un juego, una mecánica o un cambio
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: ¿Qué propones?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: ¿Por qué estaría bien?
+      description: Qué problema resuelve o qué lo haría más divertido.

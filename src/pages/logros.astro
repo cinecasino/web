@@ -1,0 +1,66 @@
+---
+import Casino from '../layouts/Casino.astro';
+---
+
+<Casino title="Logros" active="logros">
+  <section class="logros">
+    <h1 class="page-title">🏆 LOGROS</h1>
+    <div class="logros-progress" id="progress"></div>
+    <div class="ach-grid" id="ach-grid"></div>
+    <h2 class="section-title">📊 Estadísticas</h2>
+    <div class="stats-grid" id="stats"></div>
+  </section>
+</Casino>
+
+<script>
+  import { getState, xpForLevel } from '../lib/store';
+  import { ACHIEVEMENTS } from '../lib/achievements';
+  import { esc, fmt } from '../lib/util';
+
+  function render() {
+    const s = getState();
+    const done = ACHIEVEMENTS.filter((a) => s.achievements[a.id]).length;
+    document.getElementById('progress')!.innerHTML = `
+      <div class="bar"><i style="width:${(done / ACHIEVEMENTS.length) * 100}%"></i></div>
+      <b>${done} / ${ACHIEVEMENTS.length}</b> desbloqueados`;
+
+    document.getElementById('ach-grid')!.innerHTML = ACHIEVEMENTS.map((a) => {
+      const at = s.achievements[a.id];
+      const v = Math.min(a.goal, a.value(s));
+      return `<div class="ach ${at ? 'unlocked' : 'locked'}">
+        <div class="ach-icon">${at ? a.icon : '🔒'}</div>
+        <div class="ach-body">
+          <h4>${esc(a.name)}</h4>
+          <p>${esc(a.desc)}</p>
+          ${
+            at
+              ? `<small>✅ ${new Date(at).toLocaleDateString('es-ES')} · +${fmt(a.reward)} 🪙</small>`
+              : `<div class="bar sm"><i style="width:${(v / a.goal) * 100}%"></i></div><small>${fmt(v)} / ${fmt(a.goal)} · premio ${fmt(a.reward)} 🪙</small>`
+          }
+        </div>
+      </div>`;
+    }).join('');
+
+    const st = s.stats;
+    const rows: [string, string][] = [
+      ['⭐ Nivel', `${s.level} (${fmt(s.xp)}/${fmt(xpForLevel(s.level))} XP)`],
+      ['🪙 Fichas', fmt(s.coins)],
+      ['📈 Fichas ganadas', fmt(st.won)],
+      ['📉 Fichas apostadas', fmt(st.spent)],
+      ['🎰 Tiradas', fmt(st.slots)],
+      ['💥 Jackpots', fmt(st.jackpots)],
+      ['🎡 Giros de ruleta', fmt(st.roulette)],
+      ['💀 Quiebras', fmt(st.quiebras)],
+      ['🎟️ Boletos rascados', fmt(st.scratches)],
+      ['🎁 Cajas abiertas', fmt(st.boxes)],
+      ['🃏 Partidas ¿Más o Menos?', fmt(st.hilo)],
+      ['🔥 Mejor racha', fmt(st.hiloBest)],
+      ['🍿 Títulos vistos', fmt(st.seen)],
+      ['🆘 Rescates', fmt(st.bankrupt)],
+      ['📅 Racha diaria', `${s.daily.streak} días`],
+    ];
+    document.getElementById('stats')!.innerHTML = rows.map(([k, v]) => `<div class="stat"><small>${k}</small><b>${v}</b></div>`).join('');
+  }
+  render();
+  window.addEventListener('casino:change', render);
+</script>
