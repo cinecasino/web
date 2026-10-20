@@ -61,17 +61,51 @@ const SCHEMA = [
 let client: Client | null = null;
 let ready: Promise<unknown> | null = null;
 
+/** Nombre de la primera variable de entorno que es `name` o termina en `_name`, con valor. */
+function findEnv(name: string): string | undefined {
+  const env = process.env;
+  if (env[name]) return name;
+  return Object.keys(env)
+    .sort()
+    .find((k) => k.endsWith(`_${name}`) && env[k]);
+}
+
+/**
+ * Conexión a la base de datos. Prioridad:
+ *  1. DATABASE_URL / DATABASE_AUTH_TOKEN puestas a mano.
+ *  2. Las de la integración Turso de Vercel (TURSO_DATABASE_URL / TURSO_AUTH_TOKEN, con o sin prefijo,
+ *     p. ej. `supertable_TURSO_AUTH_TOKEN`). Así sobreviven a la rotación de secretos de la integración.
+ *  3. Archivo local `data/casino.db` (solo desarrollo).
+ */
+export function dbConfig() {
+  const urlVar = process.env.DATABASE_URL ? 'DATABASE_URL' : findEnv('TURSO_DATABASE_URL');
+  const tokenVar = process.env.DATABASE_AUTH_TOKEN ? 'DATABASE_AUTH_TOKEN' : findEnv('TURSO_AUTH_TOKEN');
+  return {
+    url: urlVar ? process.env[urlVar]! : DATABASE_URL,
+    authToken: tokenVar ? process.env[tokenVar] : DATABASE_AUTH_TOKEN,
+    // Solo nombres de variables (nunca valores), para /api/health
+    urlVar: urlVar ?? 'por defecto',
+    tokenVar: tokenVar ?? (DATABASE_AUTH_TOKEN ? 'DATABASE_AUTH_TOKEN' : 'ninguna'),
+  };
+}
+
 export async function db(): Promise<Client> {
   if (!client) {
-    if (DATABASE_URL.startsWith('file:')) {
-      if (process.env.VERCEL) throw new Error('En Vercel no hay disco persistente: configura DATABASE_URL con una base de datos Turso (libsql://…).');
-      mkdirSync(dirname(DATABASE_URL.slice(5)), { recursive: true });
+    const { url, authToken } = dbConfig();
+    if (url.startsWith('file:')) {
+      if (process.env.VERCEL) throw new Error('En Vercel no hay disco persistente: conecta Turso (DATABASE_URL o la integración de Vercel).');
+      mkdirSync(dirname(url.slice(5)), { recursive: true });
     }
-    client = createClient({ url: DATABASE_URL, authToken: DATABASE_AUTH_TOKEN });
-    ready = client.batch(SCHEMA, 'write');
+    client = createClient({ url, authToken });
+    ready = client.batch(SCHEMA, 'write').catch((e) => {
+      // Si falla (token caducado, red…), el siguiente intento vuelve a conectar
+      client = null;
+      throw e;
+    });
   }
+  const c = client;
   await ready;
-  return client;
+  return c;
 }
 
 export async function one<T = Record<string, unknown>>(sql: string, args: InValue[] = []): Promise<T | null> {

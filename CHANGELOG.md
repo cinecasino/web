@@ -6,7 +6,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y l
 
 ### Infraestructura
 - Despliegue a Vercel desde GitHub Actions (`deploy.yml`), solo si el CI pasa, con comprobación posterior de la web.
-- `GET /api/health`: estado de la base de datos y de la configuración de TMDB.
+- `GET /api/health`: estado de la base de datos y de la configuración de TMDB, con los nombres de las variables usadas (nunca los valores).
+- Detección automática de las variables de la integración Turso de Vercel (`*TURSO_DATABASE_URL` / `*TURSO_AUTH_TOKEN`). Si la conexión falla, se reintenta en la siguiente petición.
 - Dependabot no propone TypeScript 7 hasta que `@astrojs/check` lo soporte.
 
 ## [0.9.0-beta.1] — 2026-10-20

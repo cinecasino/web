@@ -54,7 +54,9 @@ El despliegue lo hace GitHub Actions: cuando el CI de un push a `main` pasa en v
 
 **Una sola vez:**
 
-1. **Turso** (base de datos, plan gratuito): crea una base en [turso.tech](https://turso.tech) y copia su URL `libsql://…` y un token (*Generate token*).
+1. **Turso** (base de datos, plan gratuito). Dos formas:
+   - **Integración de Vercel** (recomendada): proyecto → *Storage / Integrations → Turso*. Crea las variables `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN` (a veces con un prefijo, como `supertable_TURSO_…`) y la web las detecta sola, también después de rotar los secretos. Así no hace falta poner `DATABASE_URL` ni `DATABASE_AUTH_TOKEN`.
+   - **A mano**: crea una base en [turso.tech](https://turso.tech) y copia su URL `libsql://…` y un token en `DATABASE_URL` y `DATABASE_AUTH_TOKEN`. Si existen, tienen prioridad sobre las de la integración.
 2. **Proyecto en Vercel:** en tu PC, dentro del repo:
    ```bash
    npx vercel login
