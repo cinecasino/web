@@ -21,7 +21,7 @@ Tiras de la palanca, giras la ruleta o rascas un boleto, y el premio es un títu
 ## Índice
 
 - [Puesta en marcha](#puesta-en-marcha)
-- [Publicar](#publicar-github--vercel--turso)
+- [Publicar](#publicar-github-actions--vercel--turso)
 - [Configuración](#configuración)
 - [Cómo funciona](#cómo-funciona)
 - [Estructura](#estructura)
@@ -48,11 +48,20 @@ npm run dev               # http://localhost:4321
 | `npm run build` | Compilación de producción en `dist/` |
 | `npm start` | Arranca la compilación de producción (lee `.env`, puerto 4321 o `PORT`) |
 
-## Publicar (GitHub → Vercel + Turso)
+## Publicar (GitHub Actions → Vercel + Turso)
 
-1. **GitHub:** sube el repo. `.env` y `data/` están en `.gitignore`, así que ni el token ni la base de datos se suben. La GitHub Action de [`ci.yml`](.github/workflows/ci.yml) comprueba los tipos y compila en cada push y en cada PR.
-2. **Turso** (base de datos, plan gratuito): crea una base en [turso.tech](https://turso.tech) y copia su URL `libsql://…` y un token.
-3. **Vercel:** *Add New → Project →* importa el repo (detecta Astro solo) y añade estas variables en *Environment Variables*:
+El despliegue lo hace GitHub Actions: cuando el CI de un push a `main` pasa en verde, [`deploy.yml`](.github/workflows/deploy.yml) compila con la CLI de Vercel, publica en producción y comprueba que la web responde. Vercel no despliega por su cuenta ([`vercel.json`](vercel.json) desactiva sus despliegues automáticos), así que **nada que no pase el CI llega a producción**.
+
+**Una sola vez:**
+
+1. **Turso** (base de datos, plan gratuito): crea una base en [turso.tech](https://turso.tech) y copia su URL `libsql://…` y un token (*Generate token*).
+2. **Proyecto en Vercel:** en tu PC, dentro del repo:
+   ```bash
+   npx vercel login
+   npx vercel link        # crea el proyecto y escribe .vercel/project.json (no se sube: está en .gitignore)
+   ```
+   Abre `.vercel/project.json` y apunta `orgId` y `projectId`.
+3. **Variables de la web** en Vercel → proyecto → *Settings → Environment Variables*, entorno **Production**:
 
    | Variable | Valor |
    |---|---|
@@ -61,12 +70,19 @@ npm run dev               # http://localhost:4321
    | `DATABASE_AUTH_TOKEN` | Token de Turso |
    | `ADMIN_EMAILS` | Tu email (varios, separados por comas) |
 
-4. **Deploy.** Las tablas se crean solas en la primera petición. Regístrate con tu email de admin.
-5. A partir de ahí, **cada `git push` a `main` vuelve a desplegar** y cada PR tiene su propia URL de vista previa.
+4. **Secretos del repo** en GitHub → *Settings → Secrets and variables → Actions → New repository secret*:
 
-> **Vistas previas y base de datos:** si no defines otro `DATABASE_URL` para el entorno *Preview*, las vistas previas comparten base de datos con producción. Para una beta lo recomendable es crear una segunda base en Turso y asignarla solo a *Preview*.
+   | Secreto | De dónde sale |
+   |---|---|
+   | `VERCEL_TOKEN` | [vercel.com/account/tokens](https://vercel.com/account/tokens) → *Create* |
+   | `VERCEL_ORG_ID` | `orgId` de `.vercel/project.json` |
+   | `VERCEL_PROJECT_ID` | `projectId` de `.vercel/project.json` |
 
-Vercel pone HTTPS automáticamente, y la app instalable lo necesita. El adaptador se elige solo: `@astrojs/vercel` en Vercel y `@astrojs/node` en cualquier otro sitio. En un VPS, Render o Railway basta con `npm run build && npm start`. Si usas `DATABASE_URL=file:…` necesitarás además un disco persistente.
+5. **Primer despliegue:** GitHub → *Actions → Deploy → Run workflow*, o haz cualquier push a `main`. La URL aparece en el resumen del job y en *Environments → production*. Las tablas se crean solas; regístrate con tu email de admin.
+
+**Después:** cada push a `main` → CI → Deploy. Si el despliegue sale pero la web está mal configurada, el job falla y `/api/health` dice qué falta (`db` o `tmdb`).
+
+Vercel pone HTTPS automáticamente, y la app instalable lo necesita. El adaptador se elige solo: `@astrojs/vercel` en Vercel y `@astrojs/node` en cualquier otro sitio. En un VPS, Render o Railway basta con `npm run build && npm start`; si usas `DATABASE_URL=file:…` necesitarás además un disco persistente.
 
 ## Integración continua y versiones
 
@@ -74,6 +90,7 @@ Vercel pone HTTPS automáticamente, y la app instalable lo necesita. El adaptado
 |---|---|---|
 | [`ci.yml`](.github/workflows/ci.yml) | Push a `main`, PRs y a mano | `npm ci` → tipos → compilación → arranca el servidor y hace una prueba de humo: páginas, manifest, protección de `/admin`, proxy, CSRF, registro y sesión. No necesita secretos. |
 | [`release.yml`](.github/workflows/release.yml) | Al subir una etiqueta `v*` | Comprueba que la etiqueta coincide con `package.json`, compila y crea la Release con las notas de `CHANGELOG.md`. Si la versión lleva guion (`-beta.1`), la marca como pre-release. |
+| [`deploy.yml`](.github/workflows/deploy.yml) | Cuando el CI de un push a `main` pasa, o a mano | Compila con la CLI de Vercel, publica en producción y comprueba `/`, `/api/health` y el proxy de TMDB |
 | [`dependabot.yml`](.github/dependabot.yml) | Semanal / mensual | PRs con actualizaciones de npm (Astro y sus adaptadores agrupados) y de las Actions |
 
 **Publicar una versión nueva:**
@@ -81,7 +98,7 @@ Vercel pone HTTPS automáticamente, y la app instalable lo necesita. El adaptado
 ```bash
 # 1. Añade la sección "## [0.9.0-beta.2] — fecha" a CHANGELOG.md
 npm version 0.9.0-beta.2 -m "v%s"   # actualiza package.json, hace commit y crea la etiqueta
-git push --follow-tags               # CI + Release; Vercel despliega main
+git push --follow-tags               # CI → Deploy a Vercel, y Release por la etiqueta
 ```
 
 La versión que se ve en el pie de la web sale de `package.json`.

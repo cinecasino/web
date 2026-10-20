@@ -2,6 +2,13 @@
 
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y las versiones, [SemVer](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Infraestructura
+- Despliegue a Vercel desde GitHub Actions (`deploy.yml`), solo si el CI pasa, con comprobación posterior de la web.
+- `GET /api/health`: estado de la base de datos y de la configuración de TMDB.
+- Dependabot no propone TypeScript 7 hasta que `@astrojs/check` lo soporte.
+
 ## [0.9.0-beta.1] — 2026-10-20
 
 Primera beta pública.
