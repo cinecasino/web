@@ -17,8 +17,17 @@ export const SITE = {
   contactEmail: '[email de contacto]',
   country: 'España',
   /** URL del repositorio en GitHub, sin barra final. Activa el enlace "Reportar un problema". */
-  repo: '',
-  legalUpdated: '20 de octubre de 2026',
+  repo: 'https://github.com/cinecasino/web',
+  legalUpdated: '21 de octubre de 2026',
 };
+
+/** Cuentas, partida en la nube y panel de admin: solo existen en modo server. */
+export const ACCOUNTS = !__STATIC_BUILD__;
+
+/**
+ * Ruta interna con el prefijo del sitio. En GitHub Pages un repo normal vive en /<repo>/,
+ * así que nunca se escribe "/ruleta" a pelo: siempre u('ruleta').
+ */
+export const u = (path = '') => `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}${path.replace(/^\/+/, '')}`;
 
 export const issuesUrl = () => (SITE.repo ? `${SITE.repo}/issues/new/choose` : '');

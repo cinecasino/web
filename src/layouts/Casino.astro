@@ -5,7 +5,7 @@ import '@fontsource/rubik/400.css';
 import '@fontsource/rubik/600.css';
 import '@fontsource/rubik/800.css';
 import '../styles/global.css';
-import { issuesUrl, SITE } from '../site';
+import { ACCOUNTS, issuesUrl, SITE, u } from '../site';
 import { existsSync } from 'node:fs';
 
 // El logo oficial de TMDB hay que descargarlo a mano (ver README); si no está, solo se muestra el texto.
@@ -23,14 +23,14 @@ const fullTitle = title ? `${title} · ${SITE.name}` : `${SITE.name} · ${SITE.t
 const issues = issuesUrl();
 
 const nav = [
-  { href: '/', label: 'Lobby', icon: '🏛️', key: 'lobby' },
-  { href: '/tragaperras', label: 'Tragaperras', icon: '🎰', key: 'slots' },
-  { href: '/ruleta', label: 'Ruleta', icon: '🎡', key: 'ruleta' },
-  { href: '/cajas', label: 'Cajas', icon: '🎁', key: 'cajas' },
-  { href: '/rasca', label: 'Rasca', icon: '🎟️', key: 'rasca' },
-  { href: '/mayor-menor', label: '¿Más o Menos?', icon: '🃏', key: 'hilo' },
-  { href: '/botin', label: 'Mi Botín', icon: '💰', key: 'botin' },
-  { href: '/logros', label: 'Logros', icon: '🏆', key: 'logros' },
+  { href: u(), label: 'Lobby', icon: '🏛️', key: 'lobby' },
+  { href: u('tragaperras'), label: 'Tragaperras', icon: '🎰', key: 'slots' },
+  { href: u('ruleta'), label: 'Ruleta', icon: '🎡', key: 'ruleta' },
+  { href: u('cajas'), label: 'Cajas', icon: '🎁', key: 'cajas' },
+  { href: u('rasca'), label: 'Rasca', icon: '🎟️', key: 'rasca' },
+  { href: u('mayor-menor'), label: '¿Más o Menos?', icon: '🃏', key: 'hilo' },
+  { href: u('botin'), label: 'Mi Botín', icon: '💰', key: 'botin' },
+  { href: u('logros'), label: 'Logros', icon: '🏆', key: 'logros' },
 ];
 ---
 
@@ -44,10 +44,10 @@ const nav = [
     <meta name="theme-color" content="#0a0512" />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content="/icons/icon-512.png" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta property="og:image" content={new URL(u('icons/icon-512.png'), Astro.site ?? 'http://localhost').href} />
+    <link rel="manifest" href={u('manifest.webmanifest')} />
+    <link rel="icon" type="image/png" sizes="32x32" href={u('icons/favicon-32.png')} />
+    <link rel="apple-touch-icon" href={u('icons/apple-touch-icon.png')} />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -60,7 +60,7 @@ const nav = [
       variant === 'game' ? (
         <>
           <header class="topbar">
-            <a href="/" class="logo">
+            <a href={u('')} class="logo">
               <span class="logo-icon">🎰</span>
               <span class="neon-pink">{SITE.logo[0]}</span>
               <span class="neon-gold">{SITE.logo[1]}</span>
@@ -85,7 +85,7 @@ const nav = [
               <button id="hud-mode" class="chip" title="Películas, series o ambas">🎬 Pelis</button>
               <button id="hud-mute" class="chip" title="Sonido">🔊</button>
               <button class="chip install-chip" data-install hidden title="Instalar como app">📲 Instalar</button>
-              <span class="user-slot" data-user-slot />
+              {ACCOUNTS && <span class="user-slot" data-user-slot />}
             </div>
           </header>
           <nav class="nav">
@@ -99,17 +99,17 @@ const nav = [
         </>
       ) : (
         <header class="topbar page-top">
-          <a href="/" class="logo">
+          <a href={u('')} class="logo">
             <span class="logo-icon">🎰</span>
             <span class="neon-pink">{SITE.logo[0]}</span>
             <span class="neon-gold">{SITE.logo[1]}</span>
             {SITE.stage && <span class="stage-tag">{SITE.stage}</span>}
           </a>
           <div class="hud">
-            <a class="chip" href="/landing">ℹ️ Qué es</a>
+            <a class="chip" href={u('landing')}>ℹ️ Qué es</a>
             <button class="chip install-chip" data-install hidden>📲 Instalar</button>
-            <span class="user-slot" data-user-slot />
-            <a class="btn btn-gold enter-btn" href="/">🎰 Entrar al casino</a>
+            {ACCOUNTS && <span class="user-slot" data-user-slot />}
+            <a class="btn btn-gold enter-btn" href={u('')}>🎰 Entrar al casino</a>
           </div>
         </header>
       )
@@ -125,17 +125,17 @@ const nav = [
       <div class="sf-row">
         <span class="sf-brand">🎰 {SITE.name} · <b>sin dinero real</b>: las fichas no se compran ni se canjean</span>
         <nav class="sf-links">
-          <a href="/landing">Qué es</a>
-          <a href="/privacidad">Privacidad</a>
-          <a href="/cookies">Cookies</a>
+          <a href={u('landing')}>Qué es</a>
+          <a href={u('privacidad')}>Privacidad</a>
+          <a href={u('cookies')}>Cookies</a>
           <button type="button" data-cookie-prefs>Preferencias de cookies</button>
-          <a href="/cuenta">Mi cuenta</a>
+          {ACCOUNTS && <a href={u('cuenta')}>Mi cuenta</a>}
           {issues && <a href={issues} target="_blank" rel="noopener">🐞 Reportar un problema</a>}
           <span class="sf-version" title="Versión">v{SITE.version}</span>
         </nav>
       </div>
       <div class="sf-tmdb">
-        {hasTmdbLogo && <img src="/brand/tmdb.svg" alt="TMDB" width="110" height="14" />}
+        {hasTmdbLogo && <img src={u('brand/tmdb.svg')} alt="TMDB" width="110" height="14" />}
         <span>Este producto usa la API de TMDB, pero TMDB no lo respalda ni lo certifica. Datos de plataformas: JustWatch.</span>
       </div>
     </footer>

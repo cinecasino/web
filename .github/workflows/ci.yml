@@ -15,8 +15,51 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Tipos, compilación y prueba de humo
+  pages:
+    name: Web estática (GitHub Pages)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Se compila bajo un subdirectorio, como cinecasino.github.io/web/, para cazar rutas sin prefijo
+      BASE_PATH: /web
+      SITE_URL: https://example.github.io
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Comprobar tipos
+        run: npm run check
+
+      - name: Compilar (modo pages)
+        run: npm run build
+
+      - name: Sin rutas fuera del prefijo
+        run: |
+          bad=$(grep -rhoE '(href|src|content|action)="/[^"]*"' dist --include='*.html' | grep -vE '="/web/|="//' | sort -u || true)
+          if [ -n "$bad" ]; then echo "::error::Enlaces sin el prefijo /web/:"; echo "$bad"; exit 1; fi
+          js=$(grep -hoE '"/(api|cuenta|admin|botin|tragaperras|ruleta|cajas|rasca|landing|offline|cookies|privacidad|sw\.js|icons)[^"]*"' dist/_astro/*.js | sort -u || true)
+          if [ -n "$js" ]; then echo "::error::Rutas absolutas en el JS:"; echo "$js"; exit 1; fi
+          test ! -e dist/server && test ! -d dist/cuenta && test ! -d dist/admin || { echo "::error::El modo pages no debe incluir servidor, /cuenta ni /admin"; exit 1; }
+          echo "✅ Todo bajo /web/ y sin rutas de servidor"
+
+      - name: Prueba de humo
+        run: |
+          npx astro preview --host 127.0.0.1 --port 4321 > preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4321/web/ > /dev/null && break; sleep 1; done
+          base=http://127.0.0.1:4321/web
+          for path in / /landing/ /tragaperras/ /ruleta/ /cajas/ /rasca/ /mayor-menor/ /botin/ /logros/ /privacidad/ /cookies/ /offline/ /manifest.webmanifest /sw.js; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$base$path")
+            [ "$code" = 200 ] && echo "✅ $path" || { echo "::error::$path → $code"; cat preview.log; exit 1; }
+          done
+          node -e 'const m=JSON.parse(require("fs").readFileSync("dist/manifest.webmanifest"));if(m.start_url!=="/web/?source=pwa"||m.scope!=="/web/")process.exit(1)' \
+            && echo "✅ manifest con prefijo" || { echo "::error::manifest sin prefijo"; exit 1; }
+
+  server:
+    name: Servidor con cuentas (modo server)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -27,20 +70,14 @@ jobs:
       PORT: 4321
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - run: npm ci
 
-      - name: Instalar dependencias
-        run: npm ci
-
-      - name: Comprobar tipos
-        run: npm run check
-
-      - name: Compilar
-        run: npm run build
+      - name: Compilar (modo server)
+        run: npm run build:server
 
       - name: Arrancar el servidor
         run: |
@@ -58,15 +95,11 @@ jobs:
           ok() { echo "✅ $1"; }
           fail() { echo "::error::$1"; cat server.log; exit 1; }
 
-          for path in / /landing /tragaperras /ruleta /cajas /rasca /mayor-menor /botin /logros /cuenta /privacidad /cookies /offline /manifest.webmanifest /sw.js; do
+          for path in / /landing /tragaperras /cuenta /privacidad /manifest.webmanifest /sw.js; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "$base$path")
             [ "$code" = 200 ] && ok "$path → 200" || fail "$path → $code"
           done
 
-          curl -s "$base/manifest.webmanifest" | node -e 'const m=JSON.parse(require("fs").readFileSync(0));if(!m.name||m.icons.length<3)process.exit(1)' \
-            && ok "manifest válido" || fail "manifest inválido"
-
-          # Sin TMDB_TOKEN en CI /api/health responde 503, pero la base de datos debe estar bien
           curl -s "$base/api/health" | grep -q '"db":"ok"' && ok "base de datos (health)" || fail "base de datos: $(curl -s "$base/api/health")"
 
           code=$(curl -s -o /dev/null -w '%{http_code}' "$base/admin")

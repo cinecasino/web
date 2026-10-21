@@ -1,3 +1,4 @@
+import { ACCOUNTS, u } from '../site';
 // Consentimiento: lo necesario (partida en localStorage, cookie de sesión) no requiere permiso;
 // el contenido externo (tráileres de YouTube) solo se carga si se acepta.
 const KEY = 'cc-consent';
@@ -37,8 +38,8 @@ export function showCookieBanner(force = false) {
   el.innerHTML = `
     <div class="cb-text">
       <b>🍪 Cookies y almacenamiento</b>
-      <p>Guardamos tu partida en el almacenamiento local del navegador y, si inicias sesión, usamos una cookie técnica de sesión. Son imprescindibles y no rastrean nada.
-      Opcionalmente, los tráileres se cargan desde YouTube, que puede poner sus propias cookies. <a href="/cookies">Más información</a></p>
+      <p>Guardamos tu partida en el almacenamiento local del navegador${ACCOUNTS ? ', y si inicias sesión usamos una cookie técnica de sesión. Son imprescindibles' : '. Es imprescindible'} y no rastrea nada.
+      Opcionalmente, los tráileres se cargan desde YouTube, que puede poner sus propias cookies. <a href="${u('cookies')}">Más información</a></p>
       <label class="cb-toggle"><input type="checkbox" ${external ? 'checked' : ''} data-ext> Permitir contenido externo (tráileres de YouTube)</label>
     </div>
     <div class="cb-actions">

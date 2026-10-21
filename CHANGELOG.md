@@ -4,10 +4,19 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y l
 
 ## [Sin publicar]
 
-### Infraestructura
-- Despliegue a Vercel desde GitHub Actions (`deploy.yml`), solo si el CI pasa, con comprobación posterior de la web.
-- `GET /api/health`: estado de la base de datos y de la configuración de TMDB, con los nombres de las variables usadas (nunca los valores).
-- Detección automática de las variables de la integración Turso de Vercel (`*TURSO_DATABASE_URL` / `*TURSO_AUTH_TOKEN`). Si la conexión falla, se reintenta en la siguiente petición.
+### Cambiado
+- **La web pasa a GitHub Pages** (`pages.yml`): es 100 % estática, sin registro, con el navegador llamando a TMDB directamente. Se retira Vercel.
+- Cuentas, partida en la nube y panel de administración quedan como **modo server** opcional (`npm run dev:server` / `build:server`), apagado en la versión publicada.
+- La landing, la política de privacidad y la de cookies se adaptan a cada modo.
+- Todas las rutas internas llevan el prefijo del sitio (`u()`), así que la web funciona en `<org>.github.io/` y en `<org>.github.io/<repo>/`.
+
+### Añadido
+- Página 404 propia.
+- El CI prueba los dos modos y comprueba que ningún enlace se sale del prefijo.
+- Modo server: `GET /api/health` y detección de las variables de la integración Turso (`*TURSO_DATABASE_URL` / `*TURSO_AUTH_TOKEN`).
+
+### Corregido
+- `npm audit` ya no avisa de nada: el aviso venía del adaptador de Vercel.
 - Dependabot no propone TypeScript 7 hasta que `@astrojs/check` lo soporte.
 
 ## [0.9.0-beta.1] — 2026-10-20

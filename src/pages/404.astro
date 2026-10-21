@@ -1,0 +1,13 @@
+---
+import Casino from '../layouts/Casino.astro';
+import { u } from '../site';
+---
+
+<Casino title="No encontrado" variant="page">
+  <section class="offline">
+    <div class="offline-icon">🎰</div>
+    <h1 class="page-title">404 · ¡QUIEBRA!</h1>
+    <p class="muted center">La ruleta ha caído en una página que no existe. La casa invita a otra tirada.</p>
+    <p class="center"><a class="btn btn-gold btn-xl" href={u()}>🎰 Volver al casino</a></p>
+  </section>
+</Casino>

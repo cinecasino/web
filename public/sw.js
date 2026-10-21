@@ -1,12 +1,16 @@
 // Service worker de Cine Casino: app instalable y uso sin conexión.
 // Sube VERSION al cambiar este archivo para invalidar las cachés antiguas.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = `shell-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const IMAGES = 'tmdb-img-v1';
 const DATA = `tmdb-data-${VERSION}`;
-const PRECACHE = ['/', '/offline', '/landing', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 const MAX_IMAGES = 400;
+
+// Prefijo del sitio ("/" o "/<repo>/" en GitHub Pages), sacado del scope con el que se registró
+const BASE = new URL(self.registration.scope).pathname;
+const at = (path) => BASE + path;
+const PRECACHE = ['', 'offline/', 'landing/', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'].map(at);
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -60,17 +64,15 @@ self.addEventListener('fetch', (e) => {
 
   // Carteles de TMDB: caché primero (no cambian)
   if (url.hostname === 'image.tmdb.org') return e.respondWith(cacheFirst(req, IMAGES));
+  // Datos de TMDB (directo en GitHub Pages, o vía nuestro proxy): red primero, caché si no hay conexión
+  if (url.hostname === 'api.themoviedb.org') return e.respondWith(networkFirst(req, DATA));
   if (url.origin !== self.location.origin) return;
-
-  // Datos de TMDB vía proxy: red primero, caché si no hay conexión
-  if (url.pathname.startsWith('/api/tmdb/')) return e.respondWith(networkFirst(req, DATA));
+  if (url.pathname.startsWith(at('api/tmdb/'))) return e.respondWith(networkFirst(req, DATA));
   // Resto de la API (cuenta, partidas, admin): nunca desde caché
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin')) return;
+  if (url.pathname.startsWith(at('api/')) || url.pathname.startsWith(at('admin'))) return;
 
   // Recursos con hash (JS, CSS, fuentes) e iconos: caché primero
-  if (url.pathname.startsWith('/_astro/') || url.pathname.startsWith('/icons/') || url.pathname.startsWith('/brand/')) {
-    return e.respondWith(cacheFirst(req, ASSETS));
-  }
+  if (['_astro/', 'icons/', 'brand/'].some((p) => url.pathname.startsWith(at(p)))) return e.respondWith(cacheFirst(req, ASSETS));
   // Páginas: red primero, copia guardada o página offline si falla
-  if (req.mode === 'navigate') return e.respondWith(networkFirst(req, SHELL, '/offline'));
+  if (req.mode === 'navigate') return e.respondWith(networkFirst(req, SHELL, at('offline/')));
 });

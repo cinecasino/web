@@ -1,0 +1,91 @@
+name: Pages
+
+# Publica la web estática en GitHub Pages cuando el CI de un push a main termina en verde.
+# Requisitos (una vez): Settings → Pages → Source: "GitHub Actions",
+# y el secreto PUBLIC_TMDB_TOKEN (Settings → Secrets and variables → Actions).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Compilar
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Comprobar secreto
+        env:
+          PUBLIC_TMDB_TOKEN: ${{ secrets.PUBLIC_TMDB_TOKEN }}
+        run: |
+          if [ -z "$PUBLIC_TMDB_TOKEN" ]; then
+            echo "::error::Falta el secreto PUBLIC_TMDB_TOKEN (Settings → Secrets and variables → Actions). Sin él no cargarían las películas."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          # El commit exacto que pasó el CI
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Configurar Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - run: npm ci
+
+      - name: Compilar (modo pages)
+        env:
+          # "" si el repo es <org>.github.io (raíz), "/<repo>" si es un repo normal
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          SITE_URL: ${{ steps.pages.outputs.origin }}
+          PUBLIC_TMDB_TOKEN: ${{ secrets.PUBLIC_TMDB_TOKEN }}
+        run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Publicar
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar en GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Comprobar que la web responde
+        env:
+          URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          URL="${URL%/}"
+          for path in / /tragaperras/ /landing/ /manifest.webmanifest; do
+            for i in 1 2 3 4 5 6; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "$URL$path")
+              [ "$code" = 200 ] && break
+              sleep 10
+            done
+            [ "$code" = 200 ] && echo "✅ $URL$path" || { echo "::error::$URL$path → $code"; exit 1; }
+          done

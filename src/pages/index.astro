@@ -1,15 +1,15 @@
 ---
 import Casino from '../layouts/Casino.astro';
-import { SITE } from '../site';
+import { SITE, u, ACCOUNTS } from '../site';
 
 // `cost` es opcional: lo que no es un juego (Mi Botín) no muestra precio y su botón dice "IR"
 const games: { href: string; icon: string; name: string; desc: string; cost?: string; color: string; cta?: string }[] = [
-  { href: '/tragaperras', icon: '🎰', name: 'Tragaperras', desc: 'Tres rodillos de géneros. Alinea iguales y gana fichas… y una peli.', cost: 'desde 50', color: '#ff2f55' },
-  { href: '/ruleta', icon: '🎡', name: 'Ruleta de Géneros', desc: 'Gira la rueda. ¿Comedia? ¿Terror? ¿QUIEBRA?', cost: '30', color: '#2bff88' },
-  { href: '/cajas', icon: '🎁', name: 'Cajas de Botín', desc: 'Abre cajas y consigue títulos Legendarios y Míticos.', cost: 'desde 40', color: '#ffc93c' },
-  { href: '/rasca', icon: '🎟️', name: 'Rasca y Gana', desc: 'Rasca el boleto. Tres iguales y te forras.', cost: '25', color: '#29f0ff' },
-  { href: '/mayor-menor', icon: '🃏', name: '¿Más o Menos?', desc: '¿Cuál tiene más nota? Dobla o nada.', cost: 'desde 25', color: '#ff2bd6' },
-  { href: '/botin', icon: '💰', name: 'Mi Botín', desc: 'Tu colección, y la ruleta de "¿qué veo hoy?".', color: '#8a3cff', cta: 'IR' },
+  { href: u('tragaperras'), icon: '🎰', name: 'Tragaperras', desc: 'Tres rodillos de géneros. Alinea iguales y gana fichas… y una peli.', cost: 'desde 50', color: '#ff2f55' },
+  { href: u('ruleta'), icon: '🎡', name: 'Ruleta de Géneros', desc: 'Gira la rueda. ¿Comedia? ¿Terror? ¿QUIEBRA?', cost: '30', color: '#2bff88' },
+  { href: u('cajas'), icon: '🎁', name: 'Cajas de Botín', desc: 'Abre cajas y consigue títulos Legendarios y Míticos.', cost: 'desde 40', color: '#ffc93c' },
+  { href: u('rasca'), icon: '🎟️', name: 'Rasca y Gana', desc: 'Rasca el boleto. Tres iguales y te forras.', cost: '25', color: '#29f0ff' },
+  { href: u('mayor-menor'), icon: '🃏', name: '¿Más o Menos?', desc: '¿Cuál tiene más nota? Dobla o nada.', cost: 'desde 25', color: '#ff2bd6' },
+  { href: u('botin'), icon: '💰', name: 'Mi Botín', desc: 'Tu colección, y la ruleta de "¿qué veo hoy?".', color: '#8a3cff', cta: 'IR' },
 ];
 ---
 
@@ -21,7 +21,7 @@ const games: { href: string; icon: string; name: string; desc: string; cost?: st
     <div class="hero-actions">
       <button id="lucky" class="btn btn-gold btn-xl btn-pulse">🍀 Me siento con suerte <small>10 🪙</small></button>
     </div>
-    <p class="hero-links"><a href="/landing">¿Qué es esto?</a> · <a href="/cuenta">Guarda tu partida en una cuenta</a></p>
+    <p class="hero-links"><a href={u('landing')}>¿Qué es esto?</a>{ACCOUNTS ? <> · <a href={u('cuenta')}>Guarda tu partida en una cuenta</a></> : <> · <a href={u('botin')}>Copia de seguridad de tu partida</a></>}</p>
   </section>
 
   <section class="games-grid">

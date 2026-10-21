@@ -1,15 +1,18 @@
 ---
 import Casino from '../layouts/Casino.astro';
-import { SITE } from '../site';
+import { ACCOUNTS, SITE, u } from '../site';
 
 const rows = [
-  { name: 'cc_session', type: 'Cookie propia', purpose: 'Mantener tu sesión iniciada (solo si tienes cuenta). httpOnly, no accesible desde JavaScript.', duration: '30 días', kind: 'Necesaria' },
   { name: 'cine-casino-v1', type: 'localStorage propio', purpose: 'Tu partida: fichas, nivel, botín, logros y preferencias de juego.', duration: 'Hasta que la borres', kind: 'Necesaria' },
   { name: 'cc-consent', type: 'localStorage propio', purpose: 'Recordar lo que elegiste en este aviso.', duration: 'Hasta que la borres', kind: 'Necesaria' },
-  { name: 'cc-ann-dismissed', type: 'localStorage propio', purpose: 'Recordar qué anuncio has cerrado.', duration: 'Hasta que la borres', kind: 'Necesaria' },
   { name: 'Caché de la app', type: 'Cache Storage (service worker)', purpose: 'Guardar archivos de la web e imágenes para que cargue rápido y funcione sin conexión.', duration: 'Hasta la siguiente versión', kind: 'Necesaria' },
   { name: 'YouTube (youtube-nocookie.com)', type: 'De terceros', purpose: 'Reproducir tráileres. Solo se carga si lo permites y pulsas “Tráiler”.', duration: 'Según Google', kind: 'Opcional' },
 ];
+// Solo existen con servidor (modo server): sesión de la cuenta y anuncios del panel de admin
+if (ACCOUNTS) {
+  rows.unshift({ name: 'cc_session', type: 'Cookie propia', purpose: 'Mantener tu sesión iniciada (solo si tienes cuenta). httpOnly, no accesible desde JavaScript.', duration: '30 días', kind: 'Necesaria' });
+  rows.splice(3, 0, { name: 'cc-ann-dismissed', type: 'localStorage propio', purpose: 'Recordar qué anuncio has cerrado.', duration: 'Hasta que la borres', kind: 'Necesaria' });
+}
 ---
 
 <Casino title="Política de cookies" variant="page">
@@ -17,7 +20,7 @@ const rows = [
     <h1>Política de cookies</h1>
     <p class="muted">Última actualización: {SITE.legalUpdated}</p>
     <p>
-      {SITE.name} usa lo mínimo imprescindible para funcionar. <b>No hay cookies de analítica, publicidad ni seguimiento.</b> Solo el contenido de YouTube es opcional, y no se carga hasta que lo permites.
+      {SITE.name} usa lo mínimo imprescindible para funcionar. <b>No hay cookies de analítica, publicidad ni seguimiento.</b>{!ACCOUNTS && ' De hecho, no usamos ninguna cookie propia: solo el almacenamiento local de tu navegador.'} Solo el contenido de YouTube es opcional, y no se carga hasta que lo permites.
     </p>
 
     <div class="tbl-wrap">
@@ -48,7 +51,7 @@ const rows = [
 
     <h2>Imágenes de TMDB</h2>
     <p>
-      Los carteles se descargan de <code>image.tmdb.org</code>. Son imágenes, no cookies, pero TMDB recibe tu IP como cualquier servidor web. Más en la <a href="/privacidad">política de privacidad</a>.
+      Los carteles se descargan de <code>image.tmdb.org</code>. Son imágenes, no cookies, pero TMDB recibe tu IP como cualquier servidor web. Más en la <a href={u('privacidad')}>política de privacidad</a>.
     </p>
   </article>
 </Casino>

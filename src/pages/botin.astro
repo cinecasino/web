@@ -66,6 +66,7 @@ import Casino from '../layouts/Casino.astro';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
   import { esc, pick, sleep } from '../lib/util';
+  import { u } from '../site';
 
   const filters = { status: 'all', type: 'all', rarity: 'all' };
 
@@ -114,7 +115,7 @@ import Casino from '../layouts/Casino.astro';
     if (!list.length) {
       grid.innerHTML = total
         ? '<p class="muted center">Nada con estos filtros.</p>'
-        : '<div class="empty"><div>🕳️</div><p>Tu botín está vacío.</p><a class="btn btn-gold" href="/tragaperras">🎰 Ve a ganar algo</a></div>';
+        : `<div class="empty"><div>🕳️</div><p>Tu botín está vacío.</p><a class="btn btn-gold" href="${u('tragaperras')}">🎰 Ve a ganar algo</a></div>`;
       return;
     }
     grid.innerHTML = list

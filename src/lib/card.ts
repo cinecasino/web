@@ -5,7 +5,7 @@ import { sfx } from './sfx';
 import * as fx from './fx';
 import { esc, fmt, sleep } from './util';
 import { allowsExternal, setConsent } from './consent';
-import { SITE } from '../site';
+import { SITE, u } from '../site';
 
 // Registro global de títulos pintados, para abrir su ficha desde cualquier sitio con data-title-key.
 const registry = new Map<string, Title>();
@@ -221,7 +221,7 @@ export async function showTitle(t: Title, o: { headline?: string; reveal?: boole
           // Sin consentimiento no se contacta con YouTube
           const box = $('[data-f="trailer"]');
           box.innerHTML = `<div class="consent-gate">
-            <p>🍪 El tráiler se carga desde <b>YouTube</b>, que puede usar sus propias cookies. <a href="/cookies" target="_blank">Más info</a></p>
+            <p>🍪 El tráiler se carga desde <b>YouTube</b>, que puede usar sus propias cookies. <a href="${u('cookies')}" target="_blank">Más info</a></p>
             <button class="btn btn-gold" data-allow>Permitir y ver</button>
             <a class="btn btn-ghost" href="https://www.youtube.com/watch?v=${d.trailer}" target="_blank" rel="noopener">Abrir en YouTube ↗</a>
           </div>`;

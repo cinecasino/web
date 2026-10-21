@@ -1,5 +1,6 @@
 import { getState } from './store';
 import { pick } from './util';
+import { u } from '../site';
 
 export type MediaType = 'movie' | 'tv';
 
@@ -38,8 +39,11 @@ export interface Details {
   providers: { flatrate: Provider[]; rent: Provider[]; buy: Provider[]; link: string | null };
 }
 
-// Todas las llamadas pasan por nuestro proxy (/api/tmdb): el token vive solo en el servidor.
+// Modo server: todo pasa por nuestro proxy (/api/tmdb) y el token vive solo en el servidor.
+// Modo pages (GitHub Pages, sin servidor): el navegador llama a TMDB directamente con un token público.
 const REGION = 'ES';
+const PUBLIC_TOKEN = __STATIC_BUILD__ ? (import.meta.env.PUBLIC_TMDB_TOKEN ?? '') : '';
+const PUBLIC_KEY = __STATIC_BUILD__ ? (import.meta.env.PUBLIC_TMDB_API_KEY ?? '') : '';
 
 const PLACEHOLDER =
   'data:image/svg+xml;utf8,' +
@@ -52,14 +56,21 @@ export const img = (path: string | null, size = 'w342') => (path ? `https://imag
 const cache = new Map<string, Promise<any>>();
 
 function get(path: string, params: Record<string, string | number | boolean | undefined> = {}): Promise<any> {
-  const url = new URL(`/api/tmdb${path}`, location.origin);
+  const url = __STATIC_BUILD__ ? new URL(`https://api.themoviedb.org/3${path}`) : new URL(u(`api/tmdb${path}`), location.origin);
   url.searchParams.set('language', 'es-ES');
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') url.searchParams.set(k, String(v));
+  const headers: Record<string, string> = { accept: 'application/json' };
+  if (__STATIC_BUILD__) {
+    url.searchParams.set('include_adult', 'false');
+    if (PUBLIC_TOKEN) headers.authorization = `Bearer ${PUBLIC_TOKEN}`;
+    else if (PUBLIC_KEY) url.searchParams.set('api_key', PUBLIC_KEY);
+    else return Promise.reject(new Error('Falta PUBLIC_TMDB_TOKEN al compilar en modo pages'));
+  }
 
   const k = url.toString();
   let p = cache.get(k);
   if (!p) {
-    p = fetch(url, { headers: { accept: 'application/json' } }).then(async (r) => {
+    p = fetch(url, { headers }).then(async (r) => {
       if (!r.ok) throw new Error(`TMDB ${r.status}: ${await r.text()}`);
       return r.json();
     });

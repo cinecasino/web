@@ -1,6 +1,6 @@
 ---
 import Casino from '../layouts/Casino.astro';
-import { SITE } from '../site';
+import { ACCOUNTS, SITE, u } from '../site';
 import { RARITIES, RARITY } from '../lib/rarity';
 import { existsSync } from 'node:fs';
 
@@ -17,9 +17,13 @@ const faqs = [
   ['¿Es gratis?', 'Sí. No hay compras, suscripciones ni anuncios.'],
   ['¿Hay dinero real?', 'No. Las fichas son de mentira: no se compran, no se venden y no se canjean por nada. Es un casino de broma para decidir qué ver.'],
   ['¿De dónde salen las películas?', 'De TMDB (The Movie Database), una base de datos abierta y colaborativa. Los datos de “dónde verla” los aporta JustWatch.'],
-  ['¿Necesito cuenta?', 'No. Sin cuenta tu partida vive en tu navegador. Con cuenta se guarda en la nube y la tienes en todos tus dispositivos.'],
+  ACCOUNTS
+    ? ['¿Necesito cuenta?', 'No. Sin cuenta tu partida vive en tu navegador. Con cuenta se guarda en la nube y la tienes en todos tus dispositivos.']
+    : ['¿Necesito cuenta?', 'No hay cuentas: no te pedimos ni email ni contraseña. Tu partida vive en tu navegador. Para pasarla a otro dispositivo, en Mi Botín → Copia de seguridad puedes exportarla e importarla.'],
   ['¿Funciona sin conexión?', 'La app instalada abre aunque no haya red y conserva tu partida, pero para traer títulos nuevos necesita internet.'],
-  ['¿Puedo borrar mis datos?', 'Sí, en Mi cuenta puedes descargarlos todos o borrar la cuenta al momento. Sin cuenta, basta con borrar los datos del sitio en tu navegador.'],
+  ACCOUNTS
+    ? ['¿Puedo borrar mis datos?', 'Sí, en Mi cuenta puedes descargarlos todos o borrar la cuenta al momento. Sin cuenta, basta con borrar los datos del sitio en tu navegador.']
+    : ['¿Puedo borrar mis datos?', 'No guardamos nada en ningún servidor: todo está en tu navegador. Bórralo en Mi Botín → Copia de seguridad → Borrar todo, o borrando los datos del sitio en tu navegador.'],
 ];
 const credits = [
   ['TMDB', 'Películas, series, carteles, tráileres y reparto', 'https://www.themoviedb.org'],
@@ -44,8 +48,8 @@ const credits = [
         ¿Media hora decidiendo qué ver y al final repites la de siempre? Aquí tiras de la palanca, gira la ruleta o rascas un boleto… <b>y el premio es tu próxima película o serie.</b>
       </p>
       <div class="hero-actions land-ctas">
-        <a class="btn btn-gold btn-xl btn-pulse" href="/">🎰 Entrar al casino</a>
-        <a class="btn btn-ghost btn-xl" href="/cuenta#registro">👤 Crear cuenta</a>
+        <a class="btn btn-gold btn-xl btn-pulse" href={u('')}>🎰 Entrar al casino</a>
+        {ACCOUNTS && <a class="btn btn-ghost btn-xl" href={u('cuenta#registro')}>👤 Crear cuenta</a>}
         <button class="btn btn-ghost btn-xl" data-install="always">📲 Instalar app</button>
       </div>
     </div>
@@ -81,7 +85,7 @@ const credits = [
 
     <div class="demos">
       <div class="demo-card" style="--c:#ff2f55">
-        <div class="demo-head"><h3>🎰 Tragaperras</h3><a href="/tragaperras">Jugar de verdad →</a></div>
+        <div class="demo-head"><h3>🎰 Tragaperras</h3><a href={u('tragaperras')}>Jugar de verdad →</a></div>
         <div class="demo-slot" id="demo-slot">
           <div class="demo-reels">
             <div class="reel demo-reel"><div class="strip"></div></div>
@@ -94,7 +98,7 @@ const credits = [
       </div>
 
       <div class="demo-card" style="--c:#2bff88">
-        <div class="demo-head"><h3>🎡 Ruleta de géneros</h3><a href="/ruleta">Jugar de verdad →</a></div>
+        <div class="demo-head"><h3>🎡 Ruleta de géneros</h3><a href={u('ruleta')}>Jugar de verdad →</a></div>
         <div class="demo-wheel-wrap">
           <div class="demo-pointer"></div>
           <div class="demo-wheel" id="demo-wheel"></div>
@@ -104,7 +108,7 @@ const credits = [
       </div>
 
       <div class="demo-card" style="--c:#29f0ff">
-        <div class="demo-head"><h3>🎟️ Rasca y gana</h3><a href="/rasca">Jugar de verdad →</a></div>
+        <div class="demo-head"><h3>🎟️ Rasca y gana</h3><a href={u('rasca')}>Jugar de verdad →</a></div>
         <div class="demo-scratch">
           <div class="demo-syms" id="demo-syms"></div>
           <canvas id="demo-canvas"></canvas>
@@ -114,7 +118,7 @@ const credits = [
       </div>
 
       <div class="demo-card wide" style="--c:#ffc93c">
-        <div class="demo-head"><h3>🎁 Cajas de botín</h3><a href="/cajas">Jugar de verdad →</a></div>
+        <div class="demo-head"><h3>🎁 Cajas de botín</h3><a href={u('cajas')}>Jugar de verdad →</a></div>
         <div class="case-window demo-case"><div class="case-strip" id="demo-strip"></div><div class="case-marker"></div></div>
         <button class="btn btn-gold" id="demo-case-btn">ABRIR CAJA DEMO</button>
         <p class="demo-out" id="demo-case-out">Carteles reales de las tendencias de esta semana.</p>
@@ -151,9 +155,13 @@ const credits = [
     <div class="features">
       <div class="feature"><div>🪙</div><h3>Fichas, XP y niveles</h3><p>Empiezas con 500 fichas. Guardar títulos da XP; marcarlos como vistos da fichas. Al subir de nivel te llevas un bonus.</p></div>
       <div class="feature"><div>🏆</div><h3>Logros y bonus diario</h3><p>22 logros con recompensa, y un cofre diario que crece con la racha. Si te arruinas, el casino te rescata.</p></div>
-      <div class="feature"><div>☁️</div><h3>Cuenta opcional</h3><p>Con cuenta, tu partida se sincroniza sola entre dispositivos. Sin cuenta, todo se queda en tu navegador.</p></div>
+      {ACCOUNTS ? (
+        <div class="feature"><div>☁️</div><h3>Cuenta opcional</h3><p>Con cuenta, tu partida se sincroniza sola entre dispositivos. Sin cuenta, todo se queda en tu navegador.</p></div>
+      ) : (
+        <div class="feature"><div>💾</div><h3>Sin registro</h3><p>Ni email ni contraseña: entras y juegas. Tu partida vive en tu navegador y puedes exportarla para llevártela a otro dispositivo.</p></div>
+      )}
       <div class="feature"><div>📲</div><h3>Instalable</h3><p>Instálala en Android, Windows, macOS o Linux desde Chrome o Edge, y en iPhone con “Añadir a pantalla de inicio”. Abre aunque no haya conexión.</p></div>
-      <div class="feature"><div>🛡️</div><h3>Privacidad</h3><p>Sin analítica, sin publicidad y sin rastreo. Solo una cookie de sesión si tienes cuenta. <a href="/privacidad">Política de privacidad</a></p></div>
+      <div class="feature"><div>🛡️</div><h3>Privacidad</h3><p>Sin analítica, sin publicidad y sin rastreo.{ACCOUNTS ? ' Solo una cookie de sesión si tienes cuenta.' : ' Sin cookies propias.'} <a href={u('privacidad')}>Política de privacidad</a></p></div>
       <div class="feature"><div>🎬</div><h3>Datos reales</h3><p>Títulos, sinopsis, reparto, tráileres y dónde verlos en España, desde TMDB y JustWatch.</p></div>
     </div>
   </section>
@@ -175,7 +183,7 @@ const credits = [
   <section class="land-section credits">
     <h2 class="section-title center">🙌 Créditos</h2>
     <div class="tmdb-credit">
-      {hasTmdbLogo ? <img src="/brand/tmdb.svg" alt="The Movie Database (TMDB)" width="220" height="28" /> : <b class="tmdb-name">The Movie Database (TMDB)</b>}
+      {hasTmdbLogo ? <img src={u('brand/tmdb.svg')} alt="The Movie Database (TMDB)" width="220" height="28" /> : <b class="tmdb-name">The Movie Database (TMDB)</b>}
       <p>
         Este producto usa la API de TMDB, pero TMDB no lo respalda ni lo certifica. Todos los datos e imágenes de películas y series pertenecen a TMDB y a sus colaboradores.
       </p>
@@ -198,7 +206,7 @@ const credits = [
 
   <section class="land-final">
     <h2 class="mega-title small-mega"><span class="neon-gold">¿Una tirada?</span></h2>
-    <a class="btn btn-gold btn-xl btn-pulse" href="/">🎰 Entrar al casino</a>
+    <a class="btn btn-gold btn-xl btn-pulse" href={u('')}>🎰 Entrar al casino</a>
   </section>
 </Casino>
 

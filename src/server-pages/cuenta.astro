@@ -1,4 +1,5 @@
 ---
+import { u } from '../site';
 import Casino from '../layouts/Casino.astro';
 
 export const prerender = false;
@@ -24,7 +25,7 @@ const since = user ? new Date(user.createdAt).toLocaleDateString('es-ES', { day:
               </p>
             </div>
             <div class="acc-hero-actions">
-              {user.role === 'admin' && <a class="btn btn-ghost" href="/admin">🛠️ Panel de administración</a>}
+              {user.role === 'admin' && <a class="btn btn-ghost" href={u('admin')}>🛠️ Panel de administración</a>}
               <button class="btn btn-red" id="logout">Cerrar sesión</button>
             </div>
           </div>
@@ -34,7 +35,7 @@ const since = user ? new Date(user.createdAt).toLocaleDateString('es-ES', { day:
               <h2>☁️ Tu partida en la nube</h2>
               <p>Tus fichas, nivel, logros y botín se guardan solos en tu cuenta. Entra desde otro dispositivo y lo tendrás todo.</p>
               <div class="acc-stats" id="acc-stats" />
-              <a class="btn btn-gold" href="/">🎰 Seguir jugando</a>
+              <a class="btn btn-gold" href={u('')}>🎰 Seguir jugando</a>
             </div>
 
             <form class="acc-card" id="pw-form">
@@ -48,9 +49,9 @@ const since = user ? new Date(user.createdAt).toLocaleDateString('es-ES', { day:
 
             <div class="acc-card">
               <h2>🛡️ Tus datos</h2>
-              <p>Puedes descargar todo lo que guardamos sobre ti o borrar la cuenta para siempre. Más detalles en la <a href="/privacidad">política de privacidad</a>.</p>
+              <p>Puedes descargar todo lo que guardamos sobre ti o borrar la cuenta para siempre. Más detalles en la <a href={u('privacidad')}>política de privacidad</a>.</p>
               <div class="acc-actions">
-                <a class="btn btn-ghost" href="/api/account/export">⬇ Descargar mis datos</a>
+                <a class="btn btn-ghost" href={u('api/account/export')}>⬇ Descargar mis datos</a>
                 <button class="btn btn-red" id="delete-account">🗑️ Borrar mi cuenta</button>
               </div>
             </div>
@@ -81,7 +82,7 @@ const since = user ? new Date(user.createdAt).toLocaleDateString('es-ES', { day:
             <label>Contraseña (mín. 8)<input type="password" name="password" autocomplete="new-password" minlength="8" required /></label>
             <label class="check">
               <input type="checkbox" name="consent" required />
-              <span>He leído y acepto la <a href="/privacidad" target="_blank">política de privacidad</a>.</span>
+              <span>He leído y acepto la <a href={u('privacidad')} target="_blank">política de privacidad</a>.</span>
             </label>
             <p class="form-msg" data-msg />
             <button class="btn btn-gold btn-xl">✨ Crear cuenta</button>

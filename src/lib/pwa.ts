@@ -1,6 +1,6 @@
 import { openModal } from './card';
 import * as fx from './fx';
-import { SITE } from '../site';
+import { SITE, u } from '../site';
 
 // Instalación como app (Android, Chrome/Edge de escritorio) y modo sin conexión.
 let deferred: (Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }) | null = null;
@@ -31,7 +31,7 @@ function instructions() {
 
 export function initPwa() {
   if ('serviceWorker' in navigator && import.meta.env.PROD) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register(u('sw.js'), { scope: u() }).catch(() => {});
   }
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();

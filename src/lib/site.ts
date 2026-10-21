@@ -6,6 +6,7 @@ import { initPwa } from './pwa';
 import { sfx } from './sfx';
 import * as fx from './fx';
 import { esc, pick, rand } from './util';
+import { ACCOUNTS, u } from '../site';
 
 // Clic en cualquier póster registrado → ficha
 document.addEventListener('click', (e) => {
@@ -58,8 +59,8 @@ if (floaters) {
 function renderUser(user: Me | null) {
   document.querySelectorAll<HTMLElement>('[data-user-slot]').forEach((slot) => {
     slot.innerHTML = user
-      ? `<a class="chip user-chip" href="/cuenta" title="Tu cuenta">👤 ${esc(user.username)}</a>${user.role === 'admin' ? '<a class="chip admin-chip" href="/admin" title="Panel de administración">🛠️ Admin</a>' : ''}`
-      : '<a class="chip" href="/cuenta" title="Entrar o crear cuenta">👤 Entrar</a>';
+      ? `<a class="chip user-chip" href="${u('cuenta')}" title="Tu cuenta">👤 ${esc(user.username)}</a>${user.role === 'admin' ? `<a class="chip admin-chip" href="${u('admin')}" title="Panel de administración">🛠️ Admin</a>` : ''}`
+      : `<a class="chip" href="${u('cuenta')}" title="Entrar o crear cuenta">👤 Entrar</a>`;
   });
 }
 
@@ -90,7 +91,8 @@ function renderAnnouncement(a: Announcement | null) {
 if (document.getElementById('hud-coins')) import('./hud');
 showCookieBanner();
 initPwa();
-initAccount().then(({ user, announcement }) => {
+// Modo pages: sin servidor no hay cuentas ni anuncios; la partida vive solo en este navegador
+if (ACCOUNTS) initAccount().then(({ user, announcement }) => {
   renderUser(user);
   renderAnnouncement(announcement);
 });

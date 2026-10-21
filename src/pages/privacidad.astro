@@ -1,6 +1,6 @@
 ---
 import Casino from '../layouts/Casino.astro';
-import { SITE } from '../site';
+import { ACCOUNTS, SITE, u } from '../site';
 ---
 
 <Casino title="Política de privacidad" variant="page">
@@ -17,43 +17,88 @@ import { SITE } from '../site';
     <p>{SITE.owner} · Contacto: {SITE.contactEmail} · {SITE.country}</p>
 
     <h2>2. Qué datos tratamos</h2>
-    <h3>Si juegas sin cuenta</h3>
-    <p>
-      Tu partida (fichas, nivel, botín, logros y preferencias) se guarda <b>solo en el almacenamiento local de tu navegador</b>. No la recibimos ni la vemos.
-    </p>
-    <h3>Si creas una cuenta</h3>
-    <ul>
-      <li><b>Identificación:</b> email y nombre de jugador.</li>
-      <li><b>Contraseña:</b> solo guardamos un hash con scrypt, nunca la contraseña en claro.</li>
-      <li><b>Actividad de la cuenta:</b> fecha de alta, último acceso y fecha en que aceptaste esta política.</li>
-      <li><b>Partida:</b> fichas, nivel, XP, botín (títulos guardados y vistos), logros y estadísticas de juego.</li>
-      <li><b>Sesiones:</b> un identificador de sesión cifrado y su caducidad.</li>
-      <li><b>Buzón:</b> regalos o mensajes que te envíe la administración.</li>
-    </ul>
-    <h3>Datos técnicos</h3>
-    <p>
-      Para frenar abusos usamos tu dirección IP durante un tiempo corto (15 a 60 minutos) como contador de intentos de registro e inicio de sesión. El proveedor de alojamiento puede guardar registros técnicos de acceso según su propia política.
-      <b>No usamos analítica, publicidad ni perfiles comerciales.</b>
-    </p>
+    {
+      ACCOUNTS ? (
+        <>
+          <h3>Si juegas sin cuenta</h3>
+          <p>
+            Tu partida (fichas, nivel, botín, logros y preferencias) se guarda <b>solo en el almacenamiento local de tu navegador</b>. No la recibimos ni la vemos.
+          </p>
+          <h3>Si creas una cuenta</h3>
+          <ul>
+            <li><b>Identificación:</b> email y nombre de jugador.</li>
+            <li><b>Contraseña:</b> solo guardamos un hash con scrypt, nunca la contraseña en claro.</li>
+            <li><b>Actividad de la cuenta:</b> fecha de alta, último acceso y fecha en que aceptaste esta política.</li>
+            <li><b>Partida:</b> fichas, nivel, XP, botín (títulos guardados y vistos), logros y estadísticas de juego.</li>
+            <li><b>Sesiones:</b> un identificador de sesión cifrado y su caducidad.</li>
+            <li><b>Buzón:</b> regalos o mensajes que te envíe la administración.</li>
+          </ul>
+          <h3>Datos técnicos</h3>
+          <p>
+            Para frenar abusos usamos tu dirección IP durante un tiempo corto (15 a 60 minutos) como contador de intentos de registro e inicio de sesión. El proveedor de alojamiento puede guardar registros técnicos de acceso según su propia política.
+            <b>No usamos analítica, publicidad ni perfiles comerciales.</b>
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            <b>No tenemos servidor propio ni cuentas de usuario: no te pedimos email, nombre ni contraseña.</b> Tu partida (fichas, nivel, botín, logros y preferencias) se guarda
+            <b>solo en el almacenamiento local de tu navegador</b>. No la recibimos ni la vemos. Si exportas una copia de seguridad, el archivo se queda en tu dispositivo.
+          </p>
+          <p>
+            La web es un conjunto de archivos estáticos alojados en <b>GitHub Pages</b>. Como cualquier servidor web, GitHub recibe tu dirección IP al servir las páginas y puede guardar registros técnicos según su propia política.
+            <b>No usamos analítica, publicidad ni perfiles comerciales.</b>
+          </p>
+        </>
+      )
+    }
 
     <h2>3. Para qué y con qué base legal</h2>
     <ul>
-      <li><b>Darte el servicio que pides</b> (cuenta, guardar y sincronizar tu partida): ejecución del servicio, art. 6.1.b del RGPD.</li>
-      <li><b>Seguridad y moderación</b> (limitar intentos, suspender cuentas que abusen): interés legítimo, art. 6.1.f del RGPD.</li>
+      {
+        ACCOUNTS ? (
+          <>
+            <li><b>Darte el servicio que pides</b> (cuenta, guardar y sincronizar tu partida): ejecución del servicio, art. 6.1.b del RGPD.</li>
+            <li><b>Seguridad y moderación</b> (limitar intentos, suspender cuentas que abusen): interés legítimo, art. 6.1.f del RGPD.</li>
+          </>
+        ) : (
+          <li><b>Mostrarte la web y sus películas</b> (servir las páginas y consultar TMDB): interés legítimo en prestar el servicio que visitas, art. 6.1.f del RGPD.</li>
+        )
+      }
       <li><b>Contenido externo opcional</b> (tráileres de YouTube): tu consentimiento, art. 6.1.a del RGPD. Puedes retirarlo cuando quieras en <button type="button" class="link-btn" data-cookie-prefs>preferencias de cookies</button>.</li>
     </ul>
 
     <h2>4. Cuánto tiempo</h2>
-    <p>
-      Mientras mantengas la cuenta. Si la borras desde <a href="/cuenta">Mi cuenta</a>, eliminamos al momento la cuenta, la partida, las sesiones y el buzón de la base de datos. Las copias de seguridad del proveedor pueden tardar unos días más en desaparecer.
-      Las sesiones caducan a los 30 días sin uso.
-    </p>
+    {
+      ACCOUNTS ? (
+        <p>
+          Mientras mantengas la cuenta. Si la borras desde <a href={u('cuenta')}>Mi cuenta</a>, eliminamos al momento la cuenta, la partida, las sesiones y el buzón de la base de datos. Las copias de seguridad del proveedor pueden tardar unos días más en desaparecer.
+          Las sesiones caducan a los 30 días sin uso.
+        </p>
+      ) : (
+        <p>
+          Tu partida se queda en tu navegador hasta que la borres: en <a href={u('botin')}>Mi Botín → Copia de seguridad → Borrar todo</a> o borrando los datos del sitio desde la configuración del navegador.
+          Nosotros no guardamos nada.
+        </p>
+      )
+    }
 
     <h2>5. Con quién se comparte</h2>
     <p>No vendemos ni cedemos tus datos. Para funcionar dependemos de estos proveedores:</p>
     <ul>
-      <li><b>Alojamiento web</b> (p. ej. Vercel) y <b>base de datos</b> (p. ej. Turso): procesan los datos de tu cuenta por encargo nuestro.</li>
-      <li><b>TMDB</b> (The Movie Database): tu navegador descarga carteles e imágenes directamente de <code>image.tmdb.org</code>, por lo que TMDB recibe tu IP. Las búsquedas de títulos pasan por nuestro servidor y no incluyen datos tuyos.</li>
+      {
+        ACCOUNTS ? (
+          <>
+            <li><b>Alojamiento web y base de datos</b>: procesan los datos de tu cuenta por encargo nuestro.</li>
+            <li><b>TMDB</b> (The Movie Database): tu navegador descarga carteles e imágenes directamente de <code>image.tmdb.org</code>, por lo que TMDB recibe tu IP. Las búsquedas de títulos pasan por nuestro servidor y no incluyen datos tuyos.</li>
+          </>
+        ) : (
+          <>
+            <li><b>GitHub Pages</b> (GitHub, Inc.): aloja y sirve la web.</li>
+            <li><b>TMDB</b> (The Movie Database): tu navegador consulta directamente <code>api.themoviedb.org</code> (títulos, géneros, fichas) y descarga carteles de <code>image.tmdb.org</code>, por lo que TMDB recibe tu IP y qué consultas se hacen. No le enviamos ningún dato personal.</li>
+          </>
+        )
+      }
       <li><b>YouTube (Google)</b>: solo si aceptas el contenido externo y pulsas un tráiler.</li>
       <li><b>JustWatch</b>: los datos de "dónde verla" vienen de JustWatch a través de TMDB. Si pulsas sus enlaces, sales a su web.</li>
     </ul>
@@ -63,22 +108,35 @@ import { SITE } from '../site';
 
     <h2>6. Tus derechos</h2>
     <p>
-      Tienes derecho de acceso, rectificación, supresión, portabilidad, limitación y oposición. La mayoría puedes ejercerlos tú mismo en <a href="/cuenta">Mi cuenta</a>: <b>descargar mis datos</b> y <b>borrar mi cuenta</b>.
+      Tienes derecho de acceso, rectificación, supresión, portabilidad, limitación y oposición.
+      {
+        ACCOUNTS ? (
+          <>La mayoría puedes ejercerlos tú mismo en <a href={u('cuenta')}>Mi cuenta</a>: <b>descargar mis datos</b> y <b>borrar mi cuenta</b>.</>
+        ) : (
+          <>Como tu partida solo está en tu navegador, la controlas tú: puedes exportarla, importarla o borrarla en <a href={u('botin')}>Mi Botín → Copia de seguridad</a>.</>
+        )
+      }
       Para lo demás, escribe a {SITE.contactEmail}. Si crees que no hemos tratado bien tus datos, puedes reclamar ante la Agencia Española de Protección de Datos (<a href="https://www.aepd.es" target="_blank" rel="noopener">aepd.es</a>).
     </p>
 
     <h2>7. Edad y juego responsable</h2>
     <p>
-      Para crear una cuenta debes tener al menos 14 años (art. 7 de la LOPDGDD). Por su temática de casino simulado, recomendamos la web a mayores de edad.
+      {ACCOUNTS && 'Para crear una cuenta debes tener al menos 14 años (art. 7 de la LOPDGDD). '}Por su temática de casino simulado, recomendamos la web a mayores de edad.
       Ninguna mecánica implica dinero real. Si el juego con dinero te preocupa, en España puedes informarte en <a href="https://www.ordenacionjuego.es/es/juego-responsable" target="_blank" rel="noopener">jugarbien.es / Ordenación del Juego</a>.
     </p>
 
     <h2>8. Seguridad</h2>
-    <p>Usamos conexión cifrada (HTTPS), contraseñas con hash scrypt, cookie de sesión <code>httpOnly</code>, límite de intentos y comprobación del origen de las peticiones.</p>
+    {
+      ACCOUNTS ? (
+        <p>Usamos conexión cifrada (HTTPS), contraseñas con hash scrypt, cookie de sesión <code>httpOnly</code>, límite de intentos y comprobación del origen de las peticiones.</p>
+      ) : (
+        <p>La web se sirve siempre por HTTPS. Al no haber cuentas ni servidor propio, no guardamos datos personales que puedan filtrarse.</p>
+      )
+    }
 
     <h2>9. Cambios</h2>
     <p>Si cambiamos esta política, actualizaremos la fecha de arriba y, si el cambio es importante, lo avisaremos en la web.</p>
 
-    <p class="muted small">Más información sobre almacenamiento y cookies en la <a href="/cookies">política de cookies</a>.</p>
+    <p class="muted small">Más información sobre almacenamiento y cookies en la <a href={u('cookies')}>política de cookies</a>.</p>
   </article>
 </Casino>
