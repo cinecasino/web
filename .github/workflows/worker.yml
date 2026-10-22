@@ -1,9 +1,8 @@
 name: Worker TMDB
 
-# Despliega el proxy de TMDB (worker/) en Cloudflare Workers cuando cambia, o a mano.
-# Requisitos (una vez), en Settings → Secrets and variables → Actions:
-#   secretos CLOUDFLARE_API_TOKEN (plantilla "Edit Cloudflare Workers"), CLOUDFLARE_ACCOUNT_ID y TMDB_TOKEN.
-# Después, la variable PUBLIC_TMDB_PROXY con la URL del Worker hace que Pages lo use.
+# El proxy de TMDB (worker/) lo despliega la integración de Git de Cloudflare en cada push.
+# Este workflow solo comprueba que el Worker publicado funciona: responde, tiene el token,
+# bloquea rutas fuera de la lista y rechaza otras webs. Usa la variable PUBLIC_TMDB_PROXY.
 on:
   push:
     branches: [main]
@@ -13,56 +12,31 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: worker
-  cancel-in-progress: false
-
 jobs:
-  deploy:
-    name: Desplegar Worker
+  check:
+    name: Comprobar Worker
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Comprobar secretos
+      - name: Comprobar el Worker publicado
         env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
-        run: |
-          missing=""
-          [ -n "$CF_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
-          [ -n "$CF_ACCOUNT" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
-          [ -n "$TMDB_TOKEN" ] || missing="$missing TMDB_TOKEN"
-          if [ -n "$missing" ]; then echo "::error::Faltan secretos:$missing (Settings → Secrets and variables → Actions)"; exit 1; fi
-
-      - uses: actions/checkout@v4
-
-      - name: Desplegar
-        id: wrangler
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: worker
-          wranglerVersion: '4.152.0'
-          secrets: TMDB_TOKEN
-        env:
-          TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
-
-      - name: Comprobar que el Worker responde
-        env:
-          URL: ${{ steps.wrangler.outputs.deployment-url || vars.PUBLIC_TMDB_PROXY }}
+          URL: ${{ vars.PUBLIC_TMDB_PROXY }}
         run: |
           URL="${URL%/}"
-          if [ -z "$URL" ]; then echo "::warning::No se conoce la URL del Worker: crea la variable PUBLIC_TMDB_PROXY"; exit 0; fi
+          if [ -z "$URL" ]; then echo "::warning::Crea la variable PUBLIC_TMDB_PROXY con la URL del Worker para comprobarlo"; exit 0; fi
           echo "Worker: $URL"
           code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
-          for i in 1 2 3 4 5 6; do [ "$(code "$URL/health")" = 200 ] && break; sleep 5; done
-          curl -s "$URL/health" | grep -q '"tmdb":true' && echo "✅ salud y secreto TMDB_TOKEN" || { echo "::error::El Worker no tiene TMDB_TOKEN"; exit 1; }
+          # Cloudflare compila y despliega a la vez que corre esto: se le da hasta ~5 minutos
+          for i in $(seq 1 30); do
+            curl -s "$URL/health" | grep -q '"ok":true' && break
+            [ "$i" = 30 ] && { echo "::error::$URL/health no responde como el proxy. ¿Root directory = worker en Cloudflare?"; exit 1; }
+            sleep 10
+          done
+          curl -s "$URL/health" | grep -q '"tmdb":true' && echo "✅ salud y secreto TMDB_TOKEN" || { echo "::error::Al Worker le falta el secreto TMDB_TOKEN (Settings → Variables and Secrets)"; exit 1; }
           c=$(code -H 'Origin: https://cinecasino.github.io' "$URL/3/movie/550?language=es-ES")
           [ "$c" = 200 ] && echo "✅ ruta permitida → 200" || { echo "::error::/3/movie/550 → $c (¿token de TMDB válido?)"; exit 1; }
           c=$(code "$URL/3/account/1")
           [ "$c" = 404 ] && echo "✅ ruta fuera de la lista → 404" || { echo "::error::/3/account/1 → $c"; exit 1; }
           c=$(code -H 'Origin: https://otra-web.example' "$URL/3/movie/550")
           [ "$c" = 403 ] && echo "✅ origen ajeno → 403" || { echo "::error::origen ajeno → $c"; exit 1; }
-          echo "### Worker desplegado: $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "### ✅ Worker funcionando: $URL" >> "$GITHUB_STEP_SUMMARY"

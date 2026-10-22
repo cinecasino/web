@@ -5,7 +5,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y l
 ## [Sin publicar]
 
 ### Añadido (en curso: fase 1)
-- **Proxy de TMDB en Cloudflare Workers** (`worker/` + `worker.yml`): la web pide los datos al Worker, que guarda el token en secreto, solo deja pasar las rutas de la lista blanca (compartida con el modo server en `src/lib/tmdb-routes.ts`), solo responde a los orígenes permitidos y cachea en Cloudflare. Se activa con la variable `PUBLIC_TMDB_PROXY`; con ella el token ya no entra en la web y Pages comprueba que no aparece en `dist/`.
+- **Proxy de TMDB en Cloudflare Workers** (`worker/`, desplegado por la integración de Git de Cloudflare; `worker.yml` lo comprueba): la web pide los datos al Worker, que guarda el token en secreto, solo deja pasar las rutas de la lista blanca (compartida con el modo server en `src/lib/tmdb-routes.ts`), solo responde a los orígenes permitidos y cachea en Cloudflare. Se activa con la variable `PUBLIC_TMDB_PROXY`; con ella el token ya no entra en la web y Pages comprueba que no aparece en `dist/`.
 - **Ajustes ⚙️:** "solo mis plataformas" (Netflix, Prime…, solo lo incluido en la suscripción), país de "dónde verla" e idioma de títulos y sinopsis (español o inglés).
 - **Halloween** (24 de octubre – 2 de noviembre): tema naranja y morado, Ruleta del Terror, Caja Maldita y dos logros de temporada. Se puede forzar con `?evento=halloween`.
 - **Tests con Vitest** (`npm test`, también en el CI): rarezas, partida, tragaperras (incluido su retorno exacto al jugador), eventos y Worker.

@@ -1,7 +1,9 @@
-# Worker "cinecasino-tmdb": proxy de TMDB para la web de GitHub Pages.
-# Se despliega solo con .github/workflows/worker.yml; a mano: `npx wrangler deploy` desde esta carpeta.
-# El token de TMDB es un secreto: `npx wrangler secret put TMDB_TOKEN` (el workflow lo sube desde GitHub).
-name = "cinecasino-tmdb"
+# Worker "cinecasino": proxy de TMDB para la web de GitHub Pages → https://cinecasino.jorc001.workers.dev
+# Lo despliega la integración de Git de Cloudflare (Workers Builds) en cada push, con
+# "Root directory" = worker. El nombre de aquí debe coincidir con el del Worker en Cloudflare.
+# El token de TMDB es un secreto: se añade en el panel (Settings → Variables and Secrets → TMDB_TOKEN)
+# o con `npx wrangler secret put TMDB_TOKEN`. Los secretos se conservan entre despliegues.
+name = "cinecasino"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 workers_dev = true

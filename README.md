@@ -96,15 +96,21 @@ En modo pages no hay servidor, así que sin ayuda el token de TMDB tendría que 
 
 **Una sola vez:**
 
-1. **Cuenta de Cloudflare** (gratis). En *Workers & Pages*, elige tu subdominio de `workers.dev`.
-2. **Token de API:** en *My Profile → API Tokens → Create Token*, usa la plantilla **"Edit Cloudflare Workers"**. Un token de R2 no sirve.
-3. **Secretos en GitHub** (*Settings → Secrets and variables → Actions*). Pégalos solo ahí, nunca en un chat ni en el código:
-   - `CLOUDFLARE_API_TOKEN`: el token del paso 2.
-   - `CLOUDFLARE_ACCOUNT_ID`: aparece en la portada del panel de Cloudflare.
-   - `TMDB_TOKEN`: tu token de lectura (v4) de TMDB.
-4. **Desplegar:** *Actions → Worker TMDB → Run workflow*. Al terminar, el resumen muestra la URL (`https://cinecasino-tmdb.<subdominio>.workers.dev`) y el workflow comprueba que responde.
-5. **Conectar la web:** en *Settings → Secrets and variables → Actions → Variables*, crea `PUBLIC_TMDB_PROXY` con esa URL y vuelve a lanzar *Pages*.
-6. **Limpiar:** cuando la web funcione con el Worker, borra el secreto `PUBLIC_TMDB_TOKEN` y **regenera el token en TMDB**, porque el antiguo ya se publicó. Después actualiza `TMDB_TOKEN` y vuelve a desplegar el Worker.
+Lo despliega la **integración de Git de Cloudflare** (Workers Builds) en cada push. El workflow [`worker.yml`](.github/workflows/worker.yml) solo comprueba que el Worker publicado funciona.
+
+**Una sola vez** (en este repo, el Worker se llama `cinecasino` y vive en `https://cinecasino.jorc001.workers.dev`):
+
+1. **Conectar el repo:** en Cloudflare, *Workers & Pages → Create → Import a repository* y elige este repo.
+2. **Configurar el build:** en el Worker, *Settings → Build*:
+   - **Root directory:** `worker`.
+   - **Build command:** vacío.
+   - **Deploy command:** `npx wrangler deploy`.
+   - Opcional: en **Build watch paths**, `worker/*` y `src/lib/tmdb-routes.ts`, para no redesplegar con cada cambio de la web.
+
+   El nombre del Worker debe coincidir con `name` en [`worker/wrangler.toml`](worker/wrangler.toml).
+3. **Token de TMDB:** en *Settings → Variables and Secrets → Add*, de tipo **Secret**, con nombre `TMDB_TOKEN` y tu token de lectura (v4). Pégalo solo ahí, nunca en un chat ni en el código. Se conserva entre despliegues.
+4. **Conectar la web:** en GitHub, *Settings → Secrets and variables → Actions → Variables*, crea `PUBLIC_TMDB_PROXY` con la URL del Worker y vuelve a lanzar *Pages*. *Actions → Worker TMDB → Run workflow* comprueba que todo está bien.
+5. **Limpiar:** borra el secreto `PUBLIC_TMDB_TOKEN` de GitHub. Si alguna vez se publicó un token en la web, regenéralo en TMDB y actualiza `TMDB_TOKEN` en Cloudflare.
 
 Para desarrollar en local, pon `PUBLIC_TMDB_PROXY` en tu `.env`: el Worker acepta peticiones desde `http://localhost:4321`.
 
@@ -114,7 +120,7 @@ Para desarrollar en local, pon `PUBLIC_TMDB_PROXY` en tu `.env`: el Worker acept
 |---|---|---|
 | [`ci.yml`](.github/workflows/ci.yml) | Push a `main`, PRs y a mano | **Web estática:** tipos, compilación bajo un subdirectorio, comprueba que ningún enlace se sale del prefijo y hace una prueba de humo de las páginas. **Servidor:** compila el modo server y prueba registro, sesión, admin, proxy y CSRF. No necesita secretos. |
 | [`pages.yml`](.github/workflows/pages.yml) | Cuando el CI de un push a `main` pasa, o a mano | Compila en modo pages, publica en GitHub Pages y comprueba que la web responde |
-| [`worker.yml`](.github/workflows/worker.yml) | Push a `main` que toque `worker/` o la lista de rutas, o a mano | Despliega el proxy de TMDB en Cloudflare con su secreto y comprueba que responde, que bloquea rutas ajenas y que rechaza otros orígenes |
+| [`worker.yml`](.github/workflows/worker.yml) | Push a `main` que toque `worker/` o la lista de rutas, o a mano | Comprueba el proxy de TMDB que despliega Cloudflare: que responde, que tiene el token, que bloquea rutas ajenas y que rechaza otros orígenes |
 | [`release.yml`](.github/workflows/release.yml) | Al subir una etiqueta `v*` | Comprueba que la etiqueta coincide con `package.json`, compila y crea la Release con las notas de `CHANGELOG.md`. Si la versión lleva guion (`-beta.1`), la marca como pre-release. |
 | [`dependabot.yml`](.github/dependabot.yml) | Semanal / mensual | PRs con actualizaciones de npm (Astro agrupado) y de las Actions |
 
