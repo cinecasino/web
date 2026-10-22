@@ -58,8 +58,11 @@ const games: { href: string; icon: string; name: string; desc: string; cost?: st
   import * as fx from '../lib/fx';
   import { fmt } from '../lib/util';
 
-  // Inclinación 3D de las tarjetas de juego
+  // Inclinación 3D de las tarjetas de juego (solo con ratón y si no se ha pedido reducir el movimiento)
+  const tilt = matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches;
   document.querySelectorAll<HTMLElement>('.game-card').forEach((card) => {
+    card.addEventListener('pointerenter', () => sfx.tick());
+    if (!tilt) return;
     card.addEventListener('pointermove', (e) => {
       const r = card.getBoundingClientRect();
       const x = (e.clientX - r.left) / r.width - 0.5;
@@ -69,7 +72,6 @@ const games: { href: string; icon: string; name: string; desc: string; cost?: st
       card.style.setProperty('--my', `${(y + 0.5) * 100}%`);
     });
     card.addEventListener('pointerleave', () => (card.style.transform = ''));
-    card.addEventListener('pointerenter', () => sfx.tick());
   });
 
   async function loadTrending() {
@@ -77,9 +79,10 @@ const games: { href: string; icon: string; name: string; desc: string; cost?: st
     try {
       const list = await trending();
       const html = list.map((t) => tileHTML(t)).join('');
-      track.innerHTML = html + html;
+      // La segunda copia solo sirve para que el carrusel dé la vuelta sin saltos: se puede pulsar, pero no se lee ni se tabula
+      track.innerHTML = `${html}<div class="marquee-dup" aria-hidden="true">${html.replaceAll('tabindex="0"', 'tabindex="-1"')}</div>`;
     } catch {
-      track.innerHTML = '<p class="muted">No se pudo cargar TMDB. ¿Está bien el token en <code>.env</code>?</p>';
+      track.innerHTML = '<p class="muted">📡 No se pudieron cargar las tendencias de TMDB. Prueba a recargar en un rato.</p>';
     }
   }
   loadTrending();

@@ -61,6 +61,25 @@ a { color: inherit; }
 button { font: inherit; color: inherit; }
 code { background: #0006; padding: 0 6px; border-radius: 6px; }
 
+/* Accesibilidad: anillo de foco solo con teclado, y enlace para saltarse la cabecera */
+:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; border-radius: 6px; }
+.tile:focus-visible, .fan-card:focus-visible, .hilo-inner:focus-visible { outline-offset: 2px; border-radius: 14px; }
+main:focus { outline: none; }
+.skip-link {
+  position: fixed;
+  z-index: 10001;
+  top: 8px;
+  left: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--gold);
+  color: #2a1600;
+  font-weight: 800;
+  transform: translateY(-160%);
+  transition: transform 0.2s;
+}
+.skip-link:focus { transform: none; }
+
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
 .center { text-align: center; }
@@ -69,26 +88,27 @@ code { background: #0006; padding: 0 6px; border-radius: 6px; }
 
 /* ============ FONDO ============ */
 .bg-lights { position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden; }
+/* Focos difuminados con un degradado radial en vez de filter: blur(100px) sobre un círculo enorme:
+   mismo aspecto, pero la GPU no tiene que re-difuminar 60vmax en cada fotograma de la animación. */
 .bg-lights::before,
 .bg-lights::after {
   content: '';
   position: absolute;
-  width: 60vmax;
-  height: 60vmax;
-  border-radius: 50%;
-  filter: blur(100px);
+  width: 80vmax;
+  height: 80vmax;
   opacity: 0.3;
   animation: roam 18s ease-in-out infinite alternate;
+  will-change: transform;
 }
-.bg-lights::before { background: var(--pink); left: -25vmax; top: 5vh; }
-.bg-lights::after { background: var(--cyan); right: -25vmax; top: 40vh; animation-duration: 23s; animation-direction: alternate-reverse; }
+.bg-lights::before { background: radial-gradient(closest-side, var(--pink), transparent); left: -35vmax; top: -5vh; }
+.bg-lights::after { background: radial-gradient(closest-side, var(--cyan), transparent); right: -35vmax; top: 30vh; animation-duration: 23s; animation-direction: alternate-reverse; }
 @keyframes roam {
   0% { transform: translate(0, 0) scale(1); }
   50% { transform: translate(20vw, -10vh) scale(1.2); }
   100% { transform: translate(-10vw, 15vh) scale(0.9); }
 }
 .bg-floaters { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
-.floater { position: absolute; bottom: -60px; opacity: 0.16; animation: floatUp linear infinite; filter: saturate(1.4); }
+.floater { position: absolute; bottom: -60px; opacity: 0.16; animation: floatUp linear infinite; will-change: transform; }
 @keyframes floatUp { to { transform: translateY(-115vh) rotate(360deg); } }
 
 /* ============ NEÓN ============ */
@@ -296,8 +316,7 @@ main { max-width: 1240px; margin: 0 auto; padding: 8px 16px 40px; }
   border-radius: 8px;
   font-size: 0.72rem;
   font-weight: 800;
-  background: #000b;
-  backdrop-filter: blur(4px);
+  background: #000c; /* sin backdrop-filter: con decenas de pósters en el botín era carísimo */
 }
 .tile-rating { left: 6px; color: var(--gold); }
 .r-upcoming .tile-rating { color: var(--cyan); }
@@ -691,7 +710,8 @@ main { max-width: 1240px; margin: 0 auto; padding: 8px 16px 40px; }
 .game-card:hover .play { animation: btnPulse 0.6s infinite; }
 .marquee { overflow: hidden; mask: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); padding: 14px 0; }
 .marquee-track { display: flex; gap: 16px; width: max-content; animation: tickerRun 80s linear infinite; }
-.marquee:hover .marquee-track { animation-play-state: paused; }
+.marquee:hover .marquee-track, .marquee:focus-within .marquee-track { animation-play-state: paused; }
+.marquee-dup { display: contents; }
 .marquee .tile { width: 150px; flex: none; }
 .player-card {
   display: grid;
@@ -1363,3 +1383,16 @@ textarea { resize: vertical; }
 }
 .stage-note { display: inline-block; margin: 4px 0 0; padding: 8px 14px; border-radius: 12px; font-size: 0.85rem; color: var(--cyan); background: #29f0ff14; border: 1px solid #29f0ff44; }
 .sf-version { font-family: ui-monospace, monospace; font-size: 0.75rem; opacity: 0.7; align-self: center; }
+
+/* ============ REDUCIR MOVIMIENTO ============ */
+/* Si el sistema pide menos movimiento: fuera el fondo animado y los bucles decorativos (pulsos, brillos,
+   parpadeos); las animaciones de una sola vez se quedan. Los carruseles pasan a desplazarse a mano.
+   Los rodillos, la ruleta y las cajas siguen girando: son el juego. El confeti lo corta fx.ts. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-iteration-count: 1 !important; }
+  .bg-lights, .bg-floaters { display: none; }
+  .ticker-track, .marquee-track, .case-strip.idle, .holo::before, .flicker { animation: none !important; }
+  .ticker, .marquee { overflow-x: auto; }
+  .btn::after { display: none; }
+  .tile:hover, .game-card:hover, .box-card:hover, .feature:hover { transform: none; }
+}

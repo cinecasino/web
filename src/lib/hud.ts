@@ -32,6 +32,7 @@ function render() {
   ($('hud-rescue') as HTMLButtonElement).hidden = s.coins >= MIN_BET;
   $('hud-mode').textContent = MODES[s.mode];
   $('hud-mute').textContent = s.muted ? '🔇' : '🔊';
+  $('hud-mute').setAttribute('aria-pressed', String(s.muted));
 }
 
 render();
@@ -144,5 +145,5 @@ trending()
     $('ticker').innerHTML = `<div class="ticker-run">${html}</div><div class="ticker-run" aria-hidden="true">${html}</div>`;
   })
   .catch(() => {
-    $('ticker').innerHTML = '<div class="ticker-run">⚠️ No se pudo conectar con TMDB. Revisa TMDB_TOKEN en el servidor.</div>';
+    $('ticker').innerHTML = '<div class="ticker-run">📡 Sin señal de TMDB ahora mismo. Los juegos lo volverán a intentar.</div>';
   });

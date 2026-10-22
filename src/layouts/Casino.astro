@@ -1,9 +1,12 @@
 ---
-import '@fontsource/bungee';
-import '@fontsource/bungee-shade';
-import '@fontsource/rubik/400.css';
-import '@fontsource/rubik/600.css';
-import '@fontsource/rubik/800.css';
+// Solo el subconjunto latino: cubre el español y evita cargar decenas de @font-face (cirílico, árabe…)
+import '@fontsource/bungee/latin-400.css';
+import '@fontsource/bungee-shade/latin-400.css';
+import '@fontsource/rubik/latin-400.css';
+import '@fontsource/rubik/latin-600.css';
+import '@fontsource/rubik/latin-800.css';
+import bungeeFont from '@fontsource/bungee/files/bungee-latin-400-normal.woff2?url';
+import rubikFont from '@fontsource/rubik/files/rubik-latin-400-normal.woff2?url';
 import '../styles/global.css';
 import { ACCOUNTS, issuesUrl, SITE, u } from '../site';
 import { existsSync } from 'node:fs';
@@ -17,10 +20,14 @@ interface Props {
   active?: string;
   /** game: HUD de fichas, menú de juegos y ticker. page: cabecera sencilla (landing, legales, cuenta, admin). */
   variant?: 'game' | 'page';
+  /** Páginas que no deben salir en buscadores (404, sin conexión, cuenta, admin). */
+  noindex?: boolean;
 }
-const { title, description = SITE.description, active = '', variant = 'game' } = Astro.props;
+const { title, description = SITE.description, active = '', variant = 'game', noindex = false } = Astro.props;
 const fullTitle = title ? `${title} · ${SITE.name}` : `${SITE.name} · ${SITE.tagline}`;
 const issues = issuesUrl();
+const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
+const ogImage = new URL(u('screenshots/wide.png'), Astro.site ?? 'http://localhost').href;
 
 const nav = [
   { href: u(), label: 'Lobby', icon: '🏛️', key: 'lobby' },
@@ -41,10 +48,23 @@ const nav = [
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex" />}
+    {canonical && <link rel="canonical" href={canonical} />}
     <meta name="theme-color" content="#0a0512" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_ES" />
+    <meta property="og:site_name" content={SITE.name} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={new URL(u('icons/icon-512.png'), Astro.site ?? 'http://localhost').href} />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1366" />
+    <meta property="og:image:height" content="900" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preload" href={bungeeFont} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={rubikFont} as="font" type="font/woff2" crossorigin />
+    <link rel="preconnect" href="https://image.tmdb.org" />
+    {__STATIC_BUILD__ && <link rel="preconnect" href="https://api.themoviedb.org" crossorigin />}
     <link rel="manifest" href={u('manifest.webmanifest')} />
     <link rel="icon" type="image/png" sizes="32x32" href={u('icons/favicon-32.png')} />
     <link rel="apple-touch-icon" href={u('icons/apple-touch-icon.png')} />
@@ -53,6 +73,7 @@ const nav = [
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   </head>
   <body class={`v-${variant}`}>
+    <a class="skip-link" href="#main">Saltar al contenido</a>
     <div class="bg-lights" aria-hidden="true"></div>
     <div class="bg-floaters" id="floaters" aria-hidden="true"></div>
 
@@ -83,15 +104,15 @@ const nav = [
               <button id="hud-daily" class="chip daily" title="Bonus diario">🎁 Diario</button>
               <button id="hud-rescue" class="chip rescue" hidden>🆘 Rescate</button>
               <button id="hud-mode" class="chip" title="Películas, series o ambas">🎬 Pelis</button>
-              <button id="hud-mute" class="chip" title="Sonido">🔊</button>
+              <button id="hud-mute" class="chip" title="Sonido" aria-label="Silenciar" aria-pressed="false">🔊</button>
               <button class="chip install-chip" data-install hidden title="Instalar como app">📲 Instalar</button>
               {ACCOUNTS && <span class="user-slot" data-user-slot />}
             </div>
           </header>
-          <nav class="nav">
+          <nav class="nav" aria-label="Juegos">
             {nav.map((n) => (
-              <a href={n.href} class:list={[{ active: n.key === active }]}>
-                <span>{n.icon}</span>
+              <a href={n.href} class:list={[{ active: n.key === active }]} aria-current={n.key === active ? 'page' : undefined}>
+                <span aria-hidden="true">{n.icon}</span>
                 {n.label}
               </a>
             ))}
@@ -117,7 +138,7 @@ const nav = [
 
     <div id="announce" class="announce" hidden></div>
 
-    <main>
+    <main id="main" tabindex="-1">
       <slot />
     </main>
 
@@ -151,7 +172,7 @@ const nav = [
     }
 
     <dialog id="modal" class="modal"><div class="modal-inner"></div></dialog>
-    <div id="toasts" class="toasts"></div>
+    <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
     <div id="fx-layer" class="fx-layer" aria-hidden="true"></div>
 
     <script>

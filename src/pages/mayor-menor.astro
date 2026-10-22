@@ -78,7 +78,9 @@ import Casino from '../layouts/Casino.astro';
   async function nextFor(ref: Title | null): Promise<Title> {
     if (queue.length < 4) await refill();
     const idx = queue.findIndex((t) => !ref || (t.vote !== ref.vote && t.key !== ref.key));
-    return queue.splice(Math.max(0, idx), 1)[0];
+    const t = queue.splice(Math.max(0, idx), 1)[0];
+    if (!t) throw new Error('TMDB no ha devuelto títulos');
+    return t;
   }
 
   function cardHTML(t: Title, showVote: boolean) {
@@ -163,8 +165,19 @@ import Casino from '../layouts/Casino.astro';
       if (streak % 5 === 0) fx.banner(`¡RACHA DE ${streak}!`, `Bote: ${fmt(pot)} 🪙`, 'var(--pink)', 1500);
       statMax('hiloBest', streak);
       await sleep(900);
+      let next: Title;
+      try {
+        next = await nextFor(right);
+      } catch {
+        // Sin conexión a mitad de racha: se cobra el bote en vez de dejar la partida colgada
+        busy = false;
+        higher.disabled = lower.disabled = false;
+        fx.toast('Se ha perdido la conexión con TMDB. Te plantamos con lo ganado.', { icon: '📡' });
+        cashout();
+        return;
+      }
       left = right;
-      right = await nextFor(left);
+      right = next;
       leftEl.innerHTML = cardHTML(left, true);
       rightEl.innerHTML = cardHTML(right, false);
       leftEl.className = 'hilo-card slide';
@@ -221,9 +234,10 @@ import Casino from '../layouts/Casino.astro';
   higher.addEventListener('click', () => guess(true));
   lower.addEventListener('click', () => guess(false));
   document.addEventListener('keydown', (e) => {
-    if ((document.getElementById('modal') as HTMLDialogElement).open) return;
-    if (e.key === 'ArrowUp') guess(true);
-    if (e.key === 'ArrowDown') guess(false);
+    if (!playing || (document.getElementById('modal') as HTMLDialogElement).open) return;
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault(); // que las flechas no desplacen la página mientras juegas
+    guess(e.key === 'ArrowUp');
   });
 
   renderStatus();

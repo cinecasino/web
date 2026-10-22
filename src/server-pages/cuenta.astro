@@ -11,7 +11,7 @@ const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/
 const since = user ? new Date(user.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
 ---
 
-<Casino title="Mi cuenta" variant="page">
+<Casino title="Mi cuenta" variant="page" noindex>
   <section class="account">
     {
       user ? (

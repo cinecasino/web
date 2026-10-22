@@ -22,9 +22,12 @@ document.addEventListener('click', (e) => {
   }
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
-  const el = (e.target as HTMLElement).closest?.<HTMLElement>('[data-title-key]');
-  if (el) el.click();
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  // Solo si el foco está en el propio póster (role="button"), no en un botón que contenga
+  const el = e.target as HTMLElement;
+  if (!el.matches?.('[data-title-key]')) return;
+  e.preventDefault();
+  el.click();
 });
 document.addEventListener('pointerdown', (e) => {
   if ((e.target as HTMLElement).closest('.btn, .chip, .nav a')) sfx.click();
@@ -40,11 +43,12 @@ modal.addEventListener('close', () => {
   fx.liftFx(null);
 });
 
-// Fondo: emojis flotando
+// Fondo: emojis flotando (menos en móvil y ninguno si se ha pedido reducir el movimiento)
 const floaters = document.getElementById('floaters');
-if (floaters) {
+if (floaters && !fx.reducedMotion()) {
   const EMOJIS = ['🎰', '🍒', '💎', '🎬', '🍿', '⭐', '🪙', '🎲', '🃏', '7️⃣', '📺', '🎟️', '💰', '🔔'];
-  for (let i = 0; i < 22; i++) {
+  const n = innerWidth < 640 ? 10 : 22;
+  for (let i = 0; i < n; i++) {
     const s = document.createElement('span');
     s.className = 'floater';
     s.textContent = pick(EMOJIS);

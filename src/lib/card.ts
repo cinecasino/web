@@ -3,7 +3,7 @@ import { rarityOf, rarityRank, RARITY, STATUS, statusOf } from './rarity';
 import { addToBotin, inBotin, isSeen, markSeen, type Saved } from './store';
 import { sfx } from './sfx';
 import * as fx from './fx';
-import { esc, fmt, sleep } from './util';
+import { esc, fmt, preload, sleep } from './util';
 import { allowsExternal, setConsent } from './consent';
 import { SITE, u } from '../site';
 
@@ -49,7 +49,7 @@ export function tileHTML(t: Title, o: { extra?: string; cls?: string; open?: boo
   const L = look(t);
   const open = o.open === false ? '' : ` data-title-key="${t.key}" role="button" tabindex="0"`;
   return `<div class="tile ${L.cls} ${o.cls ?? ''}"${open} title="${esc(t.title)}">
-    <img loading="lazy" src="${img(t.poster, o.size ?? 'w342')}" alt="">
+    <img loading="lazy" decoding="async" src="${img(t.poster, o.size ?? 'w342')}" alt="">
     ${L.st === 'upcoming' ? '<span class="soon-ribbon">PRÓXIMAMENTE</span>' : ''}
     <span class="tile-rating">${L.rating}</span>
     <span class="tile-type">${t.type === 'movie' ? '🎬' : '📺'}</span>
@@ -184,7 +184,8 @@ export async function showTitle(t: Title, o: { headline?: string; reveal?: boole
 
   if (o.reveal) {
     sfx.drumroll(700);
-    await sleep(750);
+    // Se gira la carta cuando el cartel ya está listo, para no destapar un hueco en conexiones lentas
+    await Promise.all([sleep(750), preload(img(t.poster, 'w500'), 2000)]);
     if (inner.dataset.key !== t.key) return closed;
     $('.flip').classList.add('flipped');
     sfx.reveal();

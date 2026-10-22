@@ -62,7 +62,7 @@ const rim = Array.from({ length: 28 }, (_, i) => ({ c: pt((i * 360) / 28, 197).s
           <text class="w-hub" text-anchor="middle" dominant-baseline="middle">🎰</text>
         </svg>
       </div>
-      <div class="wheel-result" id="wheel-result">Cada giro: <b>30 🪙</b></div>
+      <div class="wheel-result" id="wheel-result" aria-live="polite">Cada giro: <b>30 🪙</b></div>
       <button class="btn btn-green btn-xl btn-pulse" id="spin-wheel">🎡 ¡GIRAR!</button>
     </div>
 

@@ -25,7 +25,14 @@ export function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export const fmt = (n: number) => Math.round(n).toLocaleString('es-ES');
+/** Descarga y decodifica una imagen; se resuelve igual si falla o si tarda más de `ms`. */
+export function preload(src: string, ms = 1500): Promise<void> {
+  const im = new Image();
+  im.src = src;
+  return Promise.race([im.decode().catch(() => {}), sleep(ms)]);
+}
+
+export const fmt =(n: number) => Math.round(n).toLocaleString('es-ES');
 
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC[c]);

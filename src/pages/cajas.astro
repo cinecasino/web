@@ -10,7 +10,7 @@ import { RARITIES, RARITY } from '../lib/rarity';
       <div class="case-strip" id="case-strip"></div>
       <div class="case-marker"></div>
     </div>
-    <div class="case-status" id="case-status">Elige una caja. Cada título que toque va directo a tu botín. 🎁</div>
+    <div class="case-status" id="case-status" aria-live="polite">Elige una caja. Cada título que toque va directo a tu botín. 🎁</div>
   </section>
 
   <section class="boxes-grid">
@@ -40,13 +40,13 @@ import { RARITIES, RARITY } from '../lib/rarity';
 
 <script>
   import { spend, earn, stat, inBotin, addToBotin } from '../lib/store';
-  import { randomDiscover, topRated, typesForMode, type Title } from '../lib/tmdb';
+  import { img, randomDiscover, topRated, typesForMode, type Title } from '../lib/tmdb';
   import { showTitle, tileHTML } from '../lib/card';
   import { BOXES, BOX_VALUE } from '../lib/boxes';
   import { rarityOf, rarityRank, RARITIES, RARITY, type Rarity } from '../lib/rarity';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
-  import { fmt, pick, rand, randInt, sleep, weighted } from '../lib/util';
+  import { fmt, pick, preload, rand, randInt, sleep, weighted } from '../lib/util';
 
   const ITEMS = 60;
   const WIN = 52;
@@ -134,6 +134,9 @@ import { RARITIES, RARITY } from '../lib/rarity';
       earn(value);
       if (!dup) addToBotin(winner);
     };
+
+    // El cartel ganador, descargado antes de rodar: si no, en conexiones lentas se para en un hueco
+    await preload(img(winner.poster, 'w185'));
 
     const items: Title[] = Array.from({ length: ITEMS }, () => filler(box.odds));
     items[WIN] = winner;

@@ -108,8 +108,10 @@ import Casino from '../layouts/Casino.astro';
   let last: { x: number; y: number } | null = null;
   let moves = 0;
   let lastSound = 0;
+  let coverW = 0;
 
   function drawCover() {
+    coverW = body.clientWidth;
     const r = body.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     canvas.width = r.width * dpr;
@@ -304,5 +306,7 @@ import Casino from '../layouts/Casino.astro';
   buy.addEventListener('click', newTicket);
   revealAll.addEventListener('click', finish);
   seeTitle.addEventListener('click', () => title && showTitle(title, { headline: card.classList.contains('won') ? '🏆 Título premiado de tu boleto' : '🎟️ Título de consolación', prize: true }));
-  window.addEventListener('resize', () => active && drawCover());
+  // Solo si cambia el ancho: en móvil, al ocultarse la barra de direcciones cambia el alto y
+  // redibujar la capa borraba lo que ya habías rascado
+  window.addEventListener('resize', () => active && body.clientWidth !== coverW && drawCover());
 </script>

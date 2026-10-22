@@ -139,6 +139,7 @@ import Casino from '../layouts/Casino.astro';
     if (!item) return;
     if (btn.dataset.act === 'seen') {
       const coins = markSeen(item);
+      if (!coins) return;
       sfx.coins(5);
       fx.floatFrom(btn, `+${coins} 🪙`, 'pos');
       fx.coinRain(12);
@@ -170,15 +171,20 @@ import Casino from '../layouts/Casino.astro';
       fx.toast(pool.length ? `Solo tienes uno pendiente ya estrenado: <b>${esc(pool[0].title)}</b>. ¡Decidido!` : 'No tienes pendientes estrenados con este filtro. ¡A jugar!', { icon: '🤷' });
       return;
     }
-    pool.forEach((b) => (new Image().src = img(b.poster, 'w500')));
+    // Se sortea antes la secuencia completa (~20 carteles) y solo se precargan esos, no el botín entero
+    const seq: Saved[] = [];
+    for (let delay = 45, prev = pool[0]; delay < 420; delay *= 1.12) {
+      let next = pick(pool);
+      while (next === prev) next = pick(pool);
+      seq.push((prev = next));
+    }
+    seq.forEach((b) => (new Image().src = img(b.poster, 'w500')));
     picker.hidden = false;
     pFrame.classList.remove('landed');
     pTitle.className = '';
     let delay = 45;
     let current = pool[0];
-    while (delay < 420) {
-      let next = pick(pool);
-      while (next === current) next = pick(pool);
+    for (const next of seq) {
       current = next;
       pImg.src = img(current.poster, 'w500');
       pTitle.textContent = current.title;

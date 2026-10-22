@@ -51,7 +51,7 @@ jobs:
           npx astro preview --host 127.0.0.1 --port 4321 > preview.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:4321/web/ > /dev/null && break; sleep 1; done
           base=http://127.0.0.1:4321/web
-          for path in / /landing/ /tragaperras/ /ruleta/ /cajas/ /rasca/ /mayor-menor/ /botin/ /logros/ /privacidad/ /cookies/ /offline/ /manifest.webmanifest /sw.js; do
+          for path in / /landing/ /tragaperras/ /ruleta/ /cajas/ /rasca/ /mayor-menor/ /botin/ /logros/ /privacidad/ /cookies/ /offline/ /manifest.webmanifest /sw.js /robots.txt /sitemap.xml; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "$base$path")
             [ "$code" = 200 ] && echo "✅ $path" || { echo "::error::$path → $code"; cat preview.log; exit 1; }
           done

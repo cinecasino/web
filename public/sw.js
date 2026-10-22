@@ -1,11 +1,14 @@
 // Service worker de Cine Casino: app instalable y uso sin conexión.
 // Sube VERSION al cambiar este archivo para invalidar las cachés antiguas.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = `shell-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const IMAGES = 'tmdb-img-v1';
 const DATA = `tmdb-data-${VERSION}`;
 const MAX_IMAGES = 400;
+// Cada tirada pide una página aleatoria de TMDB, así que sin tope esta caché crecía sin parar
+const MAX_DATA = 250;
+const LIMITS = { [IMAGES]: MAX_IMAGES, [DATA]: MAX_DATA };
 
 // Prefijo del sitio ("/" o "/<repo>/" en GitHub Pages), sacado del scope con el que se registró
 const BASE = new URL(self.registration.scope).pathname;
@@ -37,17 +40,21 @@ async function cacheFirst(req, cacheName) {
   if (hit) return hit;
   const res = await fetch(req);
   if (res.ok || res.type === 'opaque') {
-    const c = await caches.open(cacheName);
-    c.put(req, res.clone());
-    if (cacheName === IMAGES) trim(IMAGES, MAX_IMAGES);
+    store(cacheName, req, res.clone());
   }
   return res;
+}
+
+// Guarda y, si la caché tiene tope, borra las entradas más antiguas
+async function store(cacheName, req, res) {
+  await (await caches.open(cacheName)).put(req, res);
+  if (LIMITS[cacheName]) await trim(cacheName, LIMITS[cacheName]);
 }
 
 async function networkFirst(req, cacheName, fallbackUrl) {
   try {
     const res = await fetch(req);
-    if (res.ok) (await caches.open(cacheName)).put(req, res.clone());
+    if (res.ok) store(cacheName, req, res.clone());
     return res;
   } catch {
     const hit = await caches.match(req);

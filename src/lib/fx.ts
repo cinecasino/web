@@ -5,9 +5,14 @@ import { fmt, rand } from './util';
 const layer = () => document.getElementById('fx-layer')!;
 const Z = 9999;
 
+// Con "reducir movimiento" activado en el sistema no hay confeti, lluvia de monedas, temblores ni destellos.
+const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+export const reducedMotion = () => motionQuery.matches;
+
 // Confeti en un canvas propio dentro de #fx-layer, para que pueda subir a la capa del modal.
 let shoot: confettiLib.CreateTypes | null = null;
 function confetti(o: confettiLib.Options) {
+  if (reducedMotion()) return;
   if (!shoot) {
     const c = document.createElement('canvas');
     c.className = 'confetti-canvas';
@@ -36,6 +41,7 @@ export function cannons(colors?: string[]) {
 }
 
 export function fireworks(duration = 2500, colors?: string[]) {
+  if (reducedMotion()) return;
   const end = Date.now() + duration;
   const iv = setInterval(() => {
     if (Date.now() > end) return clearInterval(iv);
@@ -71,7 +77,10 @@ export function rarityBurst(r: Rarity) {
 }
 
 export function coinRain(n = 40, emoji = '🪙') {
+  if (reducedMotion()) return;
   const L = layer();
+  // En móvil, la mitad: cada moneda es un elemento animado más
+  if (innerWidth < 640) n = Math.ceil(n / 2);
   for (let i = 0; i < n; i++) {
     const s = document.createElement('span');
     s.className = 'coin-drop';
@@ -103,7 +112,7 @@ export function floatFrom(el: Element, text: string, cls = '') {
 
 export function shake(level: 'sm' | 'md' | 'lg' = 'md') {
   const m = document.querySelector('main');
-  if (!m) return;
+  if (!m || reducedMotion()) return;
   m.classList.remove('shake-sm', 'shake-md', 'shake-lg');
   void (m as HTMLElement).offsetWidth;
   m.classList.add(`shake-${level}`);
@@ -111,6 +120,7 @@ export function shake(level: 'sm' | 'md' | 'lg' = 'md') {
 }
 
 export function flash(color = '#ffffff') {
+  if (reducedMotion()) return;
   const d = document.createElement('div');
   d.className = 'flash';
   d.style.background = color;

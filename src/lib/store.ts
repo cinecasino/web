@@ -183,9 +183,10 @@ export function statMax(k: keyof Stats, v: number) {
   }
 }
 
-export function bumpJackpot(n: number) {
+/** `save = false` para el crecimiento decorativo del bote: se guardará con la siguiente jugada. */
+export function bumpJackpot(n: number, save = true) {
   state.jackpot += Math.round(n);
-  persist();
+  if (save) persist();
 }
 
 export function takeJackpot(): number {

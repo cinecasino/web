@@ -20,7 +20,7 @@ import Casino from '../layouts/Casino.astro';
         <div class="payline"></div>
       </div>
 
-      <div class="slot-msg" id="slot-msg">¡Tira de la palanca o pulsa ESPACIO!</div>
+      <div class="slot-msg" id="slot-msg" aria-live="polite">¡Tira de la palanca o pulsa ESPACIO!</div>
 
       <div class="slot-controls">
         <div class="bets" id="bets">
@@ -267,10 +267,12 @@ import Casino from '../layouts/Casino.astro';
     jpEl.textContent = fmt(getState().jackpot);
   }
   renderJackpot();
-  // El bote "crece solo", como en los casinos de verdad
+  // El bote "crece solo", como en los casinos de verdad. Sin guardar en cada tic: escribir la partida
+  // entera cada 2 s gastaba batería y hacía que las demás pestañas abiertas se repintaran sin parar.
   setInterval(() => {
+    if (document.hidden) return;
     const before = getState().jackpot;
-    bumpJackpot(rand(1, 9));
+    bumpJackpot(rand(1, 9), false);
     fx.countUp(jpEl, before, getState().jackpot, 900);
   }, 2200);
 
