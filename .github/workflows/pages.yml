@@ -44,7 +44,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # El commit exacto que pasó el CI
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
