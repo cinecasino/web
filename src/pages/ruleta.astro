@@ -1,16 +1,16 @@
 ---
 import Casino from '../layouts/Casino.astro';
+import Wheel from '../components/Wheel.astro';
 import { symbol } from '../lib/genres';
+import type { WheelSeg } from '../lib/wheel';
 
-type Seg = { kind: 'genre' | 'x2' | 'quiebra' | 'jackpot'; key: string; emoji: string; name: string; color: string; movie?: number; tv?: number };
-
-const genre = (key: string): Seg => {
+const genre = (key: string): WheelSeg => {
   const s = symbol(key);
-  return { kind: 'genre', key, emoji: s.emoji, name: s.short ?? s.name, color: '', movie: s.movie, tv: s.tv };
+  return { kind: 'genre', key, emoji: s.emoji, name: s.short ?? s.name, color: '', movie: [s.movie], tv: [s.tv] };
 };
-const segs: Seg[] = [
+const segs: WheelSeg[] = [
   genre('accion'), genre('comedia'), genre('terror'),
-  { kind: 'x2', key: 'x2', emoji: '💸', name: 'x2', color: '#0f8a4a' },
+  { kind: 'mult', key: 'x2', emoji: '💸', name: 'x2', color: '#0f8a4a', mult: 2 },
   genre('scifi'), genre('drama'), genre('crimen'),
   { kind: 'quiebra', key: 'quiebra', emoji: '💀', name: 'QUIEBRA', color: '#050308' },
   genre('animacion'), genre('fantasia'), genre('misterio'),
@@ -20,51 +20,11 @@ const segs: Seg[] = [
 let g = 0;
 for (const s of segs) if (s.kind === 'genre') s.color = g++ % 2 ? '#1b1030' : '#c8102e';
 segs[segs.length - 1].color = '#5b1a8f';
-
-const R = 190;
-const N = segs.length;
-const A = 360 / N;
-const pt = (deg: number, r: number) => {
-  const a = (deg * Math.PI) / 180;
-  return `${(r * Math.sin(a)).toFixed(2)},${(-r * Math.cos(a)).toFixed(2)}`;
-};
-const slices = segs.map((s, i) => ({ ...s, d: `M0,0 L${pt(i * A, R)} A${R},${R} 0 0 1 ${pt((i + 1) * A, R)} Z`, mid: i * A + A / 2 }));
-const rim = Array.from({ length: 28 }, (_, i) => ({ c: pt((i * 360) / 28, 197).split(','), alt: i % 2 }));
 ---
 
 <Casino title="Ruleta" active="ruleta">
   <section class="wheel-page">
-    <div class="wheel-stage">
-      <div class="wheel-wrap">
-        <div class="wheel-pointer" id="pointer"></div>
-        <svg id="wheel" class="wheel" viewBox="-205 -205 410 410" data-segs={JSON.stringify(segs)}>
-          <defs>
-            <radialGradient id="hub" cx="40%" cy="35%">
-              <stop offset="0%" stop-color="#fff6c8"></stop>
-              <stop offset="55%" stop-color="#ffc93c"></stop>
-              <stop offset="100%" stop-color="#9a6400"></stop>
-            </radialGradient>
-          </defs>
-          <circle r="203" fill="#2a1240" stroke="#ffc93c" stroke-width="4"></circle>
-          {
-            slices.map((s) => (
-              <g>
-                <path d={s.d} fill={s.color} stroke="#ffc93c" stroke-width="1.5" />
-                <g transform={`rotate(${s.mid})`}>
-                  <text y="-160" class="w-emoji" text-anchor="middle" dominant-baseline="middle">{s.emoji}</text>
-                  <text transform="translate(0,-100) rotate(-90)" class:list={['w-name', s.kind]} text-anchor="middle" dominant-baseline="middle">{s.name}</text>
-                </g>
-              </g>
-            ))
-          }
-          {rim.map((b) => <circle cx={b.c[0]} cy={b.c[1]} r="4.5" class:list={['rim-bulb', { alt: b.alt }]} />)}
-          <circle r="40" fill="url(#hub)" stroke="#7a4b00" stroke-width="3"></circle>
-          <text class="w-hub" text-anchor="middle" dominant-baseline="middle">🎰</text>
-        </svg>
-      </div>
-      <div class="wheel-result" id="wheel-result" aria-live="polite">Cada giro: <b>30 🪙</b></div>
-      <button class="btn btn-green btn-xl btn-pulse" id="spin-wheel">🎡 ¡GIRAR!</button>
-    </div>
+    <Wheel segs={segs} cost={30} label="🎡 ¡GIRAR!" />
 
     <aside class="side-panel">
       <h3>📜 Reglas de la casa</h3>
@@ -81,142 +41,14 @@ const rim = Array.from({ length: 28 }, (_, i) => ({ c: pt((i * 360) / 28, 197).s
 </Casino>
 
 <script>
-  import { spend, earn, stat } from '../lib/store';
-  import { luckyPick, pickType } from '../lib/tmdb';
-  import { grantClaim, showTitle, tileHTML } from '../lib/card';
-  import { sfx } from '../lib/sfx';
-  import * as fx from '../lib/fx';
-  import { sleep, weighted } from '../lib/util';
+  import { initWheel } from '../lib/wheel';
 
-  type Seg = { kind: 'genre' | 'x2' | 'quiebra' | 'jackpot'; key: string; emoji: string; name: string; movie?: number; tv?: number };
-
-  const COST = 30;
-  const wheel = document.getElementById('wheel') as unknown as SVGSVGElement;
-  const pointer = document.getElementById('pointer')!;
-  const resultEl = document.getElementById('wheel-result')!;
-  const btn = document.getElementById('spin-wheel') as HTMLButtonElement;
-  const history = document.getElementById('history')!;
-  const segs: Seg[] = JSON.parse(wheel.dataset.segs!);
-  const N = segs.length;
-  const A = 360 / N;
-  const SPIN_MS = 6000;
-
-  let rot = 0;
-  let spinning = false;
-  let free = false;
-
-  const angleNow = () => {
-    const m = new DOMMatrix(getComputedStyle(wheel).transform);
-    return ((Math.atan2(m.b, m.a) * 180) / Math.PI + 360) % 360;
-  };
-  const segAt = (angle: number) => Math.floor((((360 - angle) % 360) + 360) % 360 / A) % N;
-
-  function watchTicks() {
-    let last = segAt(angleNow());
-    const loop = () => {
-      if (!spinning) return;
-      const s = segAt(angleNow());
-      if (s !== last) {
-        last = s;
-        sfx.tick();
-        pointer.classList.remove('flick');
-        void pointer.offsetWidth;
-        pointer.classList.add('flick');
-      }
-      requestAnimationFrame(loop);
-    };
-    requestAnimationFrame(loop);
-  }
-
-  function addHistory(html: string) {
-    if (history.querySelector('p')) history.innerHTML = '';
-    history.insertAdjacentHTML('afterbegin', html);
-    while (history.children.length > 12) history.lastElementChild!.remove();
-  }
-
-  async function spinWheel() {
-    if (spinning) return;
-    if (!free && !spend(COST)) return;
-    free = false;
-    spinning = true;
-    btn.disabled = true;
-    stat('roulette');
-    sfx.whoosh();
-    resultEl.innerHTML = '🎡 Girando…';
-    wheel.classList.add('spinning');
-
-    const idx = weighted(
-      segs.map((_, i) => i),
-      (i) => (segs[i].kind === 'jackpot' ? 0.45 : segs[i].kind === 'quiebra' ? 0.9 : 1),
-    );
-    const center = idx * A + A / 2;
-    const jitter = (Math.random() - 0.5) * A * 0.7;
-    const desired = (((360 - center + jitter) % 360) + 360) % 360;
-    rot += 360 * (6 + Math.floor(Math.random() * 3)) + ((desired - (rot % 360) + 360) % 360);
-    wheel.style.transition = `transform ${SPIN_MS}ms cubic-bezier(.12,.75,.1,1)`;
-    wheel.style.transform = `rotate(${rot}deg)`;
-    watchTicks();
-
-    const seg = segs[idx];
-    const type = pickType();
-    const titleP =
-      seg.kind === 'genre'
-        ? luckyPick(type, { genres: [seg[type]!], minVote: 6.3, minVotes: 200 }, 20)
-        : seg.kind === 'jackpot'
-          ? luckyPick(type, { minVote: 8, minVotes: 1000 }, 8)
-          : Promise.resolve(null);
-    titleP.catch(() => null);
-
-    setTimeout(() => sfx.drumroll(1500), SPIN_MS - 1700);
-    await sleep(SPIN_MS + 100);
-    spinning = false;
-    wheel.classList.remove('spinning');
-    btn.disabled = false;
-
-    if (seg.kind === 'quiebra') {
-      stat('quiebras');
-      sfx.lose();
-      fx.shake('lg');
-      fx.flash('#000000');
-      resultEl.innerHTML = '💀 <b>QUIEBRA.</b> La casa gana. Vuelve a intentarlo…';
-      addHistory('<div class="hist-chip bad">💀 QUIEBRA</div>');
-      return;
-    }
-    if (seg.kind === 'x2') {
-      earn(COST * 2);
-      free = true;
-      sfx.win();
-      sfx.coins(6);
-      fx.burst();
-      resultEl.innerHTML = '💸 <b>¡DOBLE!</b> +60 fichas y el próximo giro es gratis';
-      btn.innerHTML = '🎁 ¡GIRO GRATIS!';
-      addHistory('<div class="hist-chip good">💸 x2</div>');
-      return;
-    }
-    btn.innerHTML = '🎡 ¡GIRAR!';
-    if (seg.kind === 'jackpot') {
-      earn(400);
-      sfx.jackpot();
-      fx.shake('lg');
-      fx.fireworks(3000);
-      fx.coinRain(80);
-      resultEl.innerHTML = '💎 <b>¡¡JACKPOT!!</b> +400 fichas';
-      await fx.banner('¡JACKPOT!', '+400 fichas y un título de élite', 'var(--gold)');
-    } else {
-      sfx.win();
-      fx.burst({ particleCount: 60 });
-      resultEl.innerHTML = `${seg.emoji} ¡Ha salido <b>${seg.name}</b>!`;
-    }
-    const t = await titleP.catch(() => null);
-    if (!t) {
-      fx.toast('TMDB no ha devuelto nada. ¡Otra vuelta!', { icon: '🤷' });
-      return;
-    }
-    grantClaim(t);
-    addHistory(tileHTML(t, { size: 'w185' }));
-    showTitle(t, { headline: seg.kind === 'jackpot' ? '💎 JACKPOT de la ruleta' : `🎡 La ruleta dice: ${seg.emoji} ${seg.name}`, reveal: true, prize: true });
-  }
-
-  btn.addEventListener('click', spinWheel);
-  wheel.addEventListener('click', spinWheel);
+  initWheel({
+    cost: 30,
+    jackpotCoins: 400,
+    jackpot: { minVote: 8, minVotes: 1000 },
+    spinLabel: '🎡 ¡GIRAR!',
+    jackpotHeadline: '💎 JACKPOT de la ruleta',
+    genreHeadline: (seg) => `🎡 La ruleta dice: ${seg.emoji} ${seg.name}`,
+  });
 </script>

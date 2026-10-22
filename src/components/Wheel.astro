@@ -1,0 +1,65 @@
+---
+// Rueda en SVG para las ruletas. La lógica del giro está en src/lib/wheel.ts (initWheel).
+import type { WheelSeg } from '../lib/wheel';
+
+interface Props {
+  segs: WheelSeg[];
+  cost: number;
+  label: string;
+  /** Color de los bordes y del buje. */
+  rim?: string;
+}
+const { segs, cost, label, rim = '#ffc93c' } = Astro.props;
+
+const R = 190;
+const N = segs.length;
+const A = 360 / N;
+const pt = (deg: number, r: number) => {
+  const a = (deg * Math.PI) / 180;
+  return `${(r * Math.sin(a)).toFixed(2)},${(-r * Math.cos(a)).toFixed(2)}`;
+};
+// Texto oscuro sobre casillas claras (el jackpot dorado), claro sobre las oscuras
+const isLight = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150;
+};
+const slices = segs.map((s, i) => ({
+  ...s,
+  light: isLight(s.color),
+  d: `M0,0 L${pt(i * A, R)} A${R},${R} 0 0 1 ${pt((i + 1) * A, R)} Z`,
+  mid: i * A + A / 2,
+}));
+const bulbs = Array.from({ length: 28 }, (_, i) => ({ c: pt((i * 360) / 28, 197).split(','), alt: i % 2 }));
+---
+
+<div class="wheel-stage">
+  <div class="wheel-wrap">
+    <div class="wheel-pointer" id="pointer"></div>
+    <svg id="wheel" class="wheel" viewBox="-205 -205 410 410" data-segs={JSON.stringify(segs)} role="img" aria-label="Ruleta">
+      <defs>
+        <radialGradient id="hub" cx="40%" cy="35%">
+          <stop offset="0%" stop-color="#fff6c8"></stop>
+          <stop offset="55%" stop-color={rim}></stop>
+          <stop offset="100%" stop-color="#9a6400"></stop>
+        </radialGradient>
+      </defs>
+      <circle r="203" fill="#2a1240" stroke={rim} stroke-width="4"></circle>
+      {
+        slices.map((s) => (
+          <g>
+            <path d={s.d} fill={s.color} stroke={rim} stroke-width="1.5" />
+            <g transform={`rotate(${s.mid})`}>
+              <text y="-160" class="w-emoji" text-anchor="middle" dominant-baseline="middle">{s.emoji}</text>
+              <text transform="translate(0,-100) rotate(-90)" class:list={['w-name', s.kind, { 'on-light': s.light }]} text-anchor="middle" dominant-baseline="middle">{s.name}</text>
+            </g>
+          </g>
+        ))
+      }
+      {bulbs.map((b) => <circle cx={b.c[0]} cy={b.c[1]} r="4.5" class:list={['rim-bulb', { alt: b.alt }]} />)}
+      <circle r="40" fill="url(#hub)" stroke="#7a4b00" stroke-width="3"></circle>
+      <text class="w-hub" text-anchor="middle" dominant-baseline="middle">🎰</text>
+    </svg>
+  </div>
+  <div class="wheel-result" id="wheel-result" aria-live="polite">Cada giro: <b>{cost} 🪙</b></div>
+  <button class="btn btn-green btn-xl btn-pulse" id="spin-wheel">{label}</button>
+</div>

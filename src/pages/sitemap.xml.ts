@@ -3,7 +3,7 @@ import { u } from '../site';
 
 // Se genera al compilar a partir de las páginas de src/pages, así no hay que mantener una lista a mano.
 // Sin SITE_URL no se puede escribir una URL absoluta: entonces el sitemap sale vacío.
-const HIDDEN = new Set(['404', 'offline']);
+const HIDDEN = new Set(['404', 'offline', 'ruleta-terror']);
 
 export const GET: APIRoute = ({ site }) => {
   const pages = Object.keys(import.meta.glob('./*.astro'))

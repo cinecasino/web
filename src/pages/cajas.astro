@@ -16,7 +16,7 @@ import { RARITIES, RARITY } from '../lib/rarity';
   <section class="boxes-grid">
     {
       BOXES.map((b) => (
-        <div class="box-card" style={`--c:${b.color}`}>
+        <div class:list={['box-card', { 'event-card': b.event }]} style={`--c:${b.color}`} data-event={b.event} hidden={!!b.event}>
           <div class="box-icon">{b.icon}</div>
           <h3>{b.name}</h3>
           <div class="odds">
@@ -39,10 +39,11 @@ import { RARITIES, RARITY } from '../lib/rarity';
 </Casino>
 
 <script>
-  import { spend, earn, stat, inBotin, addToBotin } from '../lib/store';
+  import { spend, earn, stat, inBotin, addToBotin, getState } from '../lib/store';
   import { img, randomDiscover, topRated, typesForMode, type Title } from '../lib/tmdb';
   import { showTitle, tileHTML } from '../lib/card';
-  import { BOXES, BOX_VALUE } from '../lib/boxes';
+  import { BOXES, BOX_VALUE, type Box } from '../lib/boxes';
+  import { isEventActive } from '../lib/events';
   import { rarityOf, rarityRank, RARITIES, RARITY, type Rarity } from '../lib/rarity';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
@@ -57,27 +58,50 @@ import { RARITIES, RARITY } from '../lib/rarity';
   const status = document.getElementById('case-status')!;
   const buttons = [...document.querySelectorAll<HTMLButtonElement>('.open-box')];
 
+  // Un mazo de títulos por tipo de caja: el general y, para las de un género (la Maldita), uno propio.
+  // `sig` recuerda con qué ajustes se llenó (pelis/series, plataformas) para rehacerlo si cambian.
+  type Deck = { list: Title[]; sig: string };
+  const decks = new Map<string, Deck>();
   let pool: Title[] = [];
-  let poolMode = '';
   let opening = false;
   let pendingAward: (() => void) | null = null;
   window.addEventListener('pagehide', () => pendingAward?.());
 
-  async function fillPool() {
-    const types = typesForMode();
+  const deckKey = (box?: Box) => (box?.genres ? box.id : 'main');
+  const deckSig = (box?: Box) => {
+    const s = getState();
+    return [box?.genres ? 'movie' : typesForMode().join(), s.providersOnly, s.providers.join('|'), s.lang].join('/');
+  };
+
+  async function fillPool(box?: Box) {
+    const genres = box?.genres;
+    const types = genres ? (['movie'] as const) : typesForMode();
     const jobs = types.flatMap((t) => [
-      randomDiscover(t, { minVotes: 100 }, 60),
-      randomDiscover(t, { minVotes: 150, maxVote: 6.3 }, 20),
-      randomDiscover(t, { minVotes: 200, minVote: 6.4, maxVote: 7.1 }, 20),
-      randomDiscover(t, { minVote: 7.1, minVotes: 300 }, 20),
-      topRated(t, randInt(1, 12)),
-      topRated(t, randInt(1, 4)),
+      randomDiscover(t, { genres, minVotes: 100 }, genres ? 30 : 60),
+      randomDiscover(t, { genres, minVotes: 150, maxVote: 6.3 }, genres ? 10 : 20),
+      randomDiscover(t, { genres, minVotes: 200, minVote: 6.4, maxVote: 7.1 }, genres ? 10 : 20),
+      randomDiscover(t, { genres, minVote: 7.1, minVotes: 300 }, genres ? 10 : 20),
+      // top_rated no filtra por género: para las cajas de un género se pide a discover ordenado por nota
+      genres ? randomDiscover(t, { genres, sort: 'vote_average.desc', minVotes: 500 }, 3) : topRated(t, randInt(1, 12)),
+      genres ? randomDiscover(t, { genres, sort: 'vote_average.desc', minVotes: 1500 }, 2) : topRated(t, randInt(1, 4)),
     ]);
     const res = await Promise.allSettled(jobs);
-    const map = new Map(pool.map((t) => [t.key, t]));
+    const key = deckKey(box);
+    const sig = deckSig(box);
+    const prev = decks.get(key);
+    const map = new Map((prev?.sig === sig ? prev.list : []).map((t) => [t.key, t]));
     res.forEach((r) => r.status === 'fulfilled' && r.value.forEach((t) => map.set(t.key, t)));
-    pool = [...map.values()];
-    poolMode = types.join();
+    decks.set(key, { list: [...map.values()], sig });
+  }
+
+  /** Deja en `pool` el mazo de esa caja, llenándolo si está vacío o se llenó con otros ajustes. */
+  async function usePool(box?: Box) {
+    const d = decks.get(deckKey(box));
+    if (!d?.list.length || d.sig !== deckSig(box)) {
+      status.innerHTML = '📡 Llenando la caja de títulos…';
+      await fillPool(box).catch(() => {});
+    }
+    pool = decks.get(deckKey(box))?.list ?? [];
   }
 
   const ofRarity = (r: Rarity) => pool.filter((t) => rarityOf(t.vote, t.votes) === r);
@@ -105,18 +129,21 @@ import { RARITIES, RARITY } from '../lib/rarity';
   async function open(boxId: string) {
     if (opening) return;
     const box = BOXES.find((b) => b.id === boxId)!;
+    if (box.event && !isEventActive(box.event)) return;
     if (!spend(box.price)) return;
     opening = true;
     buttons.forEach((b) => (b.disabled = true));
     stat('boxes');
+    if (box.event) stat('cursed');
     status.innerHTML = `${box.icon} Abriendo <b>${box.name}</b>…`;
     sfx.whoosh();
-
-    if (!pool.length || poolMode !== typesForMode().join()) {
-      status.innerHTML = '📡 Llenando la caja de títulos…';
-      pool = [];
-      await fillPool().catch(() => {});
+    if (box.event) {
+      sfx.tension();
+      fx.flash('#ff7a1a');
     }
+
+    await usePool(box);
+    status.innerHTML = `${box.icon} Abriendo <b>${box.name}</b>…`;
     const rolled = weighted(RARITIES, (r) => box.odds[r]);
     const winner = pickWinner(rolled);
     if (!winner) {
@@ -192,9 +219,10 @@ import { RARITIES, RARITY } from '../lib/rarity';
     else await sleep(700);
 
     showTitle(winner, { headline: `${box.icon} ${box.name}: ¡${RARITY[wr].label}!${dup ? ' · Duplicado' : ''}` });
-    pool = pool.filter((t) => t.key !== winner.key);
+    const deck = decks.get(deckKey(box));
+    if (deck) deck.list = deck.list.filter((t) => t.key !== winner.key);
     done();
-    if (pool.length < 40) fillPool().catch(() => {});
+    if ((deck?.list.length ?? 0) < 40) fillPool(box).catch(() => {});
   }
 
   function done() {
@@ -206,9 +234,10 @@ import { RARITIES, RARITY } from '../lib/rarity';
   document.querySelectorAll<HTMLElement>('.box-card').forEach((c) => c.addEventListener('pointerenter', () => sfx.tick()));
 
   // Tira de muestra mientras esperas
-  fillPool()
+  usePool()
     .then(() => {
-      if (opening) return;
+      if (opening || !pool.length) return;
+      status.innerHTML = 'Elige una caja. Cada título que toque va directo a tu botín. 🎁';
       strip.innerHTML = Array.from({ length: 14 }, () => `<div class="case-item">${tileHTML(pick(pool), { open: false, size: 'w185' })}</div>`).join('');
       strip.classList.add('idle');
     })

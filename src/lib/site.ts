@@ -6,6 +6,7 @@ import { initPwa } from './pwa';
 import { sfx } from './sfx';
 import * as fx from './fx';
 import { esc, pick, rand } from './util';
+import { activeEvent } from './events';
 import { ACCOUNTS, u } from '../site';
 
 // Clic en cualquier póster registrado → ficha
@@ -43,10 +44,16 @@ modal.addEventListener('close', () => {
   fx.liftFx(null);
 });
 
+// Evento de temporada: tema de colores y lo que se compila oculto con data-event (tarjetas, cajas, menú)
+const ev = activeEvent();
+if (ev) document.body.classList.add(`ev-${ev.id}`);
+document.querySelectorAll<HTMLElement>('[data-event]').forEach((el) => (el.hidden = el.dataset.event !== ev?.id));
+const eventAnnouncement = (): Announcement | null => (ev ? { id: `ev-${ev.id}-${new Date().getFullYear()}`, text: ev.banner, level: 'event' } : null);
+
 // Fondo: emojis flotando (menos en móvil y ninguno si se ha pedido reducir el movimiento)
 const floaters = document.getElementById('floaters');
 if (floaters && !fx.reducedMotion()) {
-  const EMOJIS = ['🎰', '🍒', '💎', '🎬', '🍿', '⭐', '🪙', '🎲', '🃏', '7️⃣', '📺', '🎟️', '💰', '🔔'];
+  const EMOJIS = ev?.floaters ?? ['🎰', '🍒', '💎', '🎬', '🍿', '⭐', '🪙', '🎲', '🃏', '7️⃣', '📺', '🎟️', '💰', '🔔'];
   const n = innerWidth < 640 ? 10 : 22;
   for (let i = 0; i < n; i++) {
     const s = document.createElement('span');
@@ -95,8 +102,10 @@ function renderAnnouncement(a: Announcement | null) {
 if (document.getElementById('hud-coins')) import('./hud');
 showCookieBanner();
 initPwa();
-// Modo pages: sin servidor no hay cuentas ni anuncios; la partida vive solo en este navegador
-if (ACCOUNTS) initAccount().then(({ user, announcement }) => {
-  renderUser(user);
-  renderAnnouncement(announcement);
-});
+// Modo pages: sin servidor no hay cuentas ni anuncios (solo el del evento); la partida vive solo en este navegador
+if (ACCOUNTS)
+  initAccount().then(({ user, announcement }) => {
+    renderUser(user);
+    renderAnnouncement(announcement ?? eventAnnouncement());
+  });
+else renderAnnouncement(eventAnnouncement());

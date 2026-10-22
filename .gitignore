@@ -6,3 +6,6 @@ data/
 .env
 .env.*
 !.env.example
+# Worker de Cloudflare: secretos locales de `wrangler dev` y su caché
+.dev.vars
+.wrangler/

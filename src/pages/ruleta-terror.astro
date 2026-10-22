@@ -1,0 +1,73 @@
+---
+import Casino from '../layouts/Casino.astro';
+import Wheel from '../components/Wheel.astro';
+import type { WheelSeg } from '../lib/wheel';
+import { u } from '../site';
+
+// Ruleta de temporada (Halloween). Solo películas: TMDB no tiene género de terror para series.
+const HORROR = 27;
+const combo = (key: string, emoji: string, name: string, extra?: number): WheelSeg => ({
+  kind: 'genre',
+  key,
+  emoji,
+  name,
+  color: '',
+  movie: extra ? [HORROR, extra] : [HORROR],
+});
+const segs: WheelSeg[] = [
+  combo('terror', '🔪', 'TERROR'),
+  combo('suspense', '😱', 'Suspense', 53),
+  { kind: 'mult', key: 'x3', emoji: '🎃', name: 'x3', color: '#0f8a4a', mult: 3 },
+  combo('misterio', '🕵️', 'Misterio', 9648),
+  combo('scifi', '👽', 'Sci-Fi', 878),
+  { kind: 'quiebra', key: 'quiebra', emoji: '💀', name: 'QUIEBRA', color: '#050308' },
+  combo('comedia', '🤡', 'Comedia', 35),
+  combo('fantasia', '🧙', 'Fantasía', 14),
+  { kind: 'jackpot', key: 'jackpot', emoji: '🧛', name: 'JACKPOT', color: '#7a00ff' },
+  combo('crimen', '🩸', 'Crimen', 80),
+];
+let g = 0;
+for (const s of segs) if (s.kind === 'genre') s.color = g++ % 2 ? '#1b0b24' : '#d4550a';
+---
+
+<Casino title="Ruleta del Terror" active="terror" noindex>
+  <h1 class="page-title">🎃 RULETA DEL TERROR</h1>
+  <section class="wheel-page" data-event="halloween" hidden>
+    <Wheel segs={segs} cost={30} label="🎃 ¡GIRAR!" rim="#ff7a1a" />
+
+    <aside class="side-panel">
+      <h3>📜 Reglas de la cripta</h3>
+      <ul class="paytable">
+        <li><span>🔪 Subgénero</span><b>una película de terror con ese toque</b></li>
+        <li><span>🎃 x3</span><b>+90 🪙 y giro gratis</b></li>
+        <li><span>🧛 JACKPOT</span><b>+666 🪙 y un clásico del terror</b></li>
+        <li><span>💀 QUIEBRA</span><b>la casa gana… y se ríe</b></li>
+      </ul>
+      <p class="muted small">Solo películas, y solo hasta el 2 de noviembre.</p>
+      <h3>🕘 Lo que ha caído</h3>
+      <div class="history" id="history"><p class="muted small">La rueda os espera…</p></div>
+    </aside>
+  </section>
+  <section class="offline event-closed" id="closed">
+    <div class="offline-icon">🪦</div>
+    <p class="muted center">La cripta está cerrada. La Ruleta del Terror vuelve el próximo Halloween.</p>
+    <p class="center"><a class="btn btn-gold btn-xl" href={u('ruleta')}>🎡 Ir a la ruleta normal</a></p>
+  </section>
+</Casino>
+
+<script>
+  import { initWheel } from '../lib/wheel';
+  import { isEventActive } from '../lib/events';
+
+  if (isEventActive('halloween')) {
+    document.getElementById('closed')!.hidden = true;
+    initWheel({
+      cost: 30,
+      jackpotCoins: 666,
+      jackpot: { minVote: 7.3, minVotes: 800, movie: [27] },
+      spinLabel: '🎃 ¡GIRAR!',
+      jackpotHeadline: '🧛 JACKPOT de la cripta',
+      genreHeadline: (seg) => `🎃 La ruleta del terror dice: ${seg.emoji} ${seg.name}`,
+    });
+  }
+</script>

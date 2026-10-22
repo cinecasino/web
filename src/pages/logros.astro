@@ -14,23 +14,25 @@ import Casino from '../layouts/Casino.astro';
 
 <script>
   import { getState, xpForLevel } from '../lib/store';
-  import { ACHIEVEMENTS } from '../lib/achievements';
+  import { availableAchievements } from '../lib/achievements';
   import { esc, fmt } from '../lib/util';
 
   function render() {
     const s = getState();
-    const done = ACHIEVEMENTS.filter((a) => s.achievements[a.id]).length;
+    // Los de temporada van primero mientras dura el evento
+    const list = availableAchievements(s).sort((a, b) => Number(!!b.event && !s.achievements[b.id]) - Number(!!a.event && !s.achievements[a.id]));
+    const done = list.filter((a) => s.achievements[a.id]).length;
     document.getElementById('progress')!.innerHTML = `
-      <div class="bar"><i style="width:${(done / ACHIEVEMENTS.length) * 100}%"></i></div>
-      <b>${done} / ${ACHIEVEMENTS.length}</b> desbloqueados`;
+      <div class="bar"><i style="width:${(done / list.length) * 100}%"></i></div>
+      <b>${done} / ${list.length}</b> desbloqueados`;
 
-    document.getElementById('ach-grid')!.innerHTML = ACHIEVEMENTS.map((a) => {
+    document.getElementById('ach-grid')!.innerHTML = list.map((a) => {
       const at = s.achievements[a.id];
       const v = Math.min(a.goal, a.value(s));
-      return `<div class="ach ${at ? 'unlocked' : 'locked'}">
+      return `<div class="ach ${at ? 'unlocked' : 'locked'}${a.event ? ` ev-ach` : ''}">
         <div class="ach-icon">${at ? a.icon : '🔒'}</div>
         <div class="ach-body">
-          <h4>${esc(a.name)}</h4>
+          <h4>${esc(a.name)}${a.event && !at ? ' <span class="ev-tag">temporada</span>' : ''}</h4>
           <p>${esc(a.desc)}</p>
           ${
             at
@@ -56,6 +58,7 @@ import Casino from '../layouts/Casino.astro';
       ['🃏 Partidas ¿Más o Menos?', fmt(st.hilo)],
       ['🔥 Mejor racha', fmt(st.hiloBest)],
       ['🍿 Títulos vistos', fmt(st.seen)],
+      ...(st.cursed ? [['🎃 Cajas Malditas', fmt(st.cursed)] as [string, string]] : []),
       ['🆘 Rescates', fmt(st.bankrupt)],
       ['📅 Racha diaria', `${s.daily.streak} días`],
     ];

@@ -1,4 +1,4 @@
-import { getState } from './store';
+import { getState, providerFilterOn } from './store';
 import { pick } from './util';
 import { u } from '../site';
 
@@ -20,9 +20,12 @@ export interface Title {
   date?: string;
   genres: number[];
   popularity: number;
+  /** Lo trajo el último intento de luckyPick, que ignora el filtro de plataformas. */
+  offPlatform?: boolean;
 }
 
 export interface Provider {
+  id: number;
   name: string;
   logo: string | null;
 }
@@ -40,10 +43,11 @@ export interface Details {
 }
 
 // Modo server: todo pasa por nuestro proxy (/api/tmdb) y el token vive solo en el servidor.
-// Modo pages (GitHub Pages, sin servidor): el navegador llama a TMDB directamente con un token público.
-const REGION = 'ES';
-const PUBLIC_TOKEN = __STATIC_BUILD__ ? (import.meta.env.PUBLIC_TMDB_TOKEN ?? '') : '';
-const PUBLIC_KEY = __STATIC_BUILD__ ? (import.meta.env.PUBLIC_TMDB_API_KEY ?? '') : '';
+// Modo pages (GitHub Pages, sin servidor): con PUBLIC_TMDB_PROXY, el navegador llama al Worker de Cloudflare
+// (worker/), que guarda el token en secreto. Sin él, llama a TMDB directamente con un token público.
+const PROXY = __STATIC_BUILD__ ? (import.meta.env.PUBLIC_TMDB_PROXY ?? '').replace(/\/+$/, '') : '';
+const PUBLIC_TOKEN = __STATIC_BUILD__ && !PROXY ? (import.meta.env.PUBLIC_TMDB_TOKEN ?? '') : '';
+const PUBLIC_KEY = __STATIC_BUILD__ && !PROXY ? (import.meta.env.PUBLIC_TMDB_API_KEY ?? '') : '';
 
 const PLACEHOLDER =
   'data:image/svg+xml;utf8,' +
@@ -56,15 +60,20 @@ export const img = (path: string | null, size = 'w342') => (path ? `https://imag
 const cache = new Map<string, Promise<any>>();
 
 function get(path: string, params: Record<string, string | number | boolean | undefined> = {}): Promise<any> {
-  const url = __STATIC_BUILD__ ? new URL(`https://api.themoviedb.org/3${path}`) : new URL(u(`api/tmdb${path}`), location.origin);
-  url.searchParams.set('language', 'es-ES');
+  const url = !__STATIC_BUILD__
+    ? new URL(u(`api/tmdb${path}`), location.origin)
+    : new URL(`${PROXY || 'https://api.themoviedb.org'}/3${path}`);
+  url.searchParams.set('language', getState().lang);
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') url.searchParams.set(k, String(v));
   const headers: Record<string, string> = { accept: 'application/json' };
   if (__STATIC_BUILD__) {
     url.searchParams.set('include_adult', 'false');
-    if (PUBLIC_TOKEN) headers.authorization = `Bearer ${PUBLIC_TOKEN}`;
-    else if (PUBLIC_KEY) url.searchParams.set('api_key', PUBLIC_KEY);
-    else return Promise.reject(new Error('Falta PUBLIC_TMDB_TOKEN al compilar en modo pages'));
+    // Con el Worker no se manda credencial (y sin cabeceras propias el navegador ni siquiera hace preflight)
+    if (!PROXY) {
+      if (PUBLIC_TOKEN) headers.authorization = `Bearer ${PUBLIC_TOKEN}`;
+      else if (PUBLIC_KEY) url.searchParams.set('api_key', PUBLIC_KEY);
+      else return Promise.reject(new Error('Falta PUBLIC_TMDB_PROXY o PUBLIC_TMDB_TOKEN al compilar en modo pages'));
+    }
   }
 
   const k = url.toString();
@@ -120,6 +129,15 @@ export interface DiscoverOpts {
   minVotes?: number;
   sort?: string;
   page?: number;
+  /** Ignora el filtro "solo mis plataformas" (último recurso de luckyPick). */
+  anyProvider?: boolean;
+}
+
+/** Parámetros de discover para quedarse con lo incluido en la suscripción de las plataformas elegidas. */
+function providerParams(o: DiscoverOpts) {
+  if (o.anyProvider || !providerFilterOn()) return {};
+  const s = getState();
+  return { with_watch_providers: s.providers.join('|'), watch_region: s.region, with_watch_monetization_types: 'flatrate' };
 }
 
 export async function discover(type: MediaType, o: DiscoverOpts = {}) {
@@ -131,6 +149,7 @@ export async function discover(type: MediaType, o: DiscoverOpts = {}) {
     'vote_count.gte': o.minVotes ?? 150,
     include_adult: false,
     page: o.page ?? 1,
+    ...providerParams(o),
   });
   return {
     results: (data.results as any[]).filter((r) => r.poster_path).map((r) => normalize(r, type)),
@@ -149,8 +168,28 @@ export async function randomDiscover(type: MediaType, o: DiscoverOpts = {}, maxP
 }
 
 export async function topRated(type: MediaType, page = 1): Promise<Title[]> {
+  // top_rated no admite filtrar por plataforma: con el filtro activo se pide a discover ordenado por nota
+  if (providerFilterOn()) return (await discover(type, { sort: 'vote_average.desc', minVotes: 300, page })).results;
   const d = await get(`/${type}/top_rated`, { page });
   return (d.results as any[]).filter((r) => r.poster_path).map((r) => normalize(r, type));
+}
+
+/** Plataformas de suscripción del país elegido (películas y series juntas), las más conocidas primero. */
+export async function providerList(limit = 24): Promise<Provider[]> {
+  const region = getState().region;
+  const lists = await Promise.all((['movie', 'tv'] as const).map((t) => get(`/watch/providers/${t}`, { watch_region: region })));
+  const byId = new Map<number, { p: Provider; prio: number }>();
+  for (const r of lists.flatMap((d) => d.results as any[])) {
+    // Fuera los canales de JustWatch y los "X Amazon Channel": duplican a la plataforma original
+    if (/justwatch|channel$/i.test(r.provider_name)) continue;
+    const prio = r.display_priorities?.[region] ?? r.display_priority ?? 999;
+    const prev = byId.get(r.provider_id);
+    if (!prev || prio < prev.prio) byId.set(r.provider_id, { p: { id: r.provider_id, name: r.provider_name, logo: r.logo_path }, prio });
+  }
+  return [...byId.values()]
+    .sort((a, b) => a.prio - b.prio)
+    .slice(0, limit)
+    .map((x) => x.p);
 }
 
 export async function trending(): Promise<Title[]> {
@@ -177,9 +216,11 @@ export async function luckyPick(type: MediaType, o: DiscoverOpts = {}, maxPage =
   ];
   if ((o.genres?.length ?? 0) > 1) attempts.push([{ ...o, join: 'or' }, maxPage]);
   attempts.push([{ ...o, minVote: undefined, minVotes: 50 }, 5]);
+  // Si con tus plataformas no hay nada, mejor un título de fuera (marcado) que quedarse sin premio
+  if (providerFilterOn()) attempts.push([{ ...o, anyProvider: true }, maxPage]);
   for (const [opts, mp] of attempts) {
     const list = await randomDiscover(type, opts, mp);
-    if (list.length) return freshest(list);
+    if (list.length) return opts.anyProvider ? { ...freshest(list), offPlatform: true } : freshest(list);
   }
   return null;
 }
@@ -199,8 +240,8 @@ export async function details(type: MediaType, id: number): Promise<Details> {
   const trailer =
     (yt.find((v) => v.type === 'Trailer' && v.iso_639_1 === 'es') ?? yt.find((v) => v.type === 'Trailer') ?? yt.find((v) => v.type === 'Teaser') ?? yt[0])
       ?.key ?? null;
-  const pr = d['watch/providers']?.results?.[REGION] ?? {};
-  const prov = (a: any[] | undefined): Provider[] => (a ?? []).map((p) => ({ name: p.provider_name, logo: p.logo_path }));
+  const pr = d['watch/providers']?.results?.[getState().region] ?? {};
+  const prov = (a: any[] | undefined): Provider[] => (a ?? []).map((p) => ({ id: p.provider_id, name: p.provider_name, logo: p.logo_path }));
   const director =
     type === 'movie'
       ? ((d.credits?.crew ?? []) as any[]).filter((c) => c.job === 'Director').map((c) => c.name).join(', ')

@@ -22,6 +22,7 @@ Tiras de la palanca, giras la ruleta o rascas un boleto, y el premio es un títu
 - [Dos modos: pages y server](#dos-modos-pages-y-server)
 - [Puesta en marcha](#puesta-en-marcha)
 - [Publicar en GitHub Pages](#publicar-en-github-pages)
+- [Proxy de TMDB en Cloudflare Workers](#proxy-de-tmdb-en-cloudflare-workers)
 - [Integración continua y versiones](#integración-continua-y-versiones)
 - [Configuración](#configuración)
 - [Cómo funciona](#cómo-funciona)
@@ -38,7 +39,7 @@ Tiras de la palanca, giras la ruleta o rascas un boleto, y el premio es un títu
 | Juegos, botín, logros, PWA | ✅ | ✅ |
 | Cuentas y partida en la nube | ❌ (exportar/importar a mano en *Mi Botín*) | ✅ |
 | Panel `/admin` y anuncios | ❌ | ✅ |
-| TMDB | El navegador llama directo; **el token es público** | Proxy en el servidor; el token queda oculto |
+| TMDB | Vía el [Worker de Cloudflare](#proxy-de-tmdb-en-cloudflare-workers), con el token oculto (o directo con token público) | Proxy en el servidor; el token queda oculto |
 | Compilar | `npm run build` | `npm run build:server` |
 
 El código de servidor está en `src/server-pages/` y `src/server/`. En modo pages no se compila: [`astro.config.mjs`](astro.config.mjs) solo añade esas rutas en modo server.
@@ -49,7 +50,7 @@ Requisitos: **Node 22.9 o superior** y un token de lectura de la API de TMDB (gr
 
 ```bash
 npm install
-cp .env.example .env      # rellena PUBLIC_TMDB_TOKEN
+cp .env.example .env      # rellena PUBLIC_TMDB_PROXY (o PUBLIC_TMDB_TOKEN)
 npm run dev               # http://localhost:4321
 ```
 
@@ -68,8 +69,10 @@ Cuando el CI de un push a `main` pasa en verde, [`pages.yml`](.github/workflows/
 **Una sola vez:**
 
 1. **Activar Pages:** en el repo, *Settings → Pages → Build and deployment → Source:* **GitHub Actions**.
-2. **Token de TMDB:** *Settings → Secrets and variables → Actions → New repository secret* → `PUBLIC_TMDB_TOKEN` con tu token de lectura (v4).
-   > ⚠️ En modo pages este token **acaba en el JavaScript público**: cualquiera puede verlo. Es de solo lectura, pero alguien podría gastar tu cuota. Si ves abusos, regenéralo en TMDB y actualiza el secreto.
+2. **Acceso a TMDB**, una de dos:
+   - **Recomendado:** el [proxy en Cloudflare Workers](#proxy-de-tmdb-en-cloudflare-workers) y la variable `PUBLIC_TMDB_PROXY`. El token no sale nunca en la web.
+   - **Rápido:** *Settings → Secrets and variables → Actions → New repository secret* → `PUBLIC_TMDB_TOKEN` con tu token de lectura (v4).
+     > ⚠️ Así el token **acaba en el JavaScript público**: cualquiera puede verlo. Es de solo lectura, pero alguien podría gastar tu cuota. Si ves abusos, regenéralo en TMDB y actualiza el secreto.
 3. **Primer despliegue:** *Actions → Pages → Run workflow*, o haz cualquier push a `main`. La URL aparece en el resumen del job y en *Settings → Pages*.
 
 **¿En qué URL sale?**
@@ -81,12 +84,37 @@ Cuando el CI de un push a `main` pasa en verde, [`pages.yml`](.github/workflows/
 
 El workflow detecta el prefijo (`BASE_PATH`) solo, así que la web funciona igual en los dos casos. Para tener la URL corta, renombra el repo a `cinecasino.github.io` en *Settings → General*; GitHub redirige el nombre antiguo. También puedes usar un dominio propio en *Settings → Pages → Custom domain*.
 
+## Proxy de TMDB en Cloudflare Workers
+
+En modo pages no hay servidor, así que sin ayuda el token de TMDB tendría que ir dentro del JavaScript publicado. El Worker de [`worker/`](worker/src/index.ts) lo evita:
+
+- Es una función pequeña que corre en Cloudflare; el plan gratuito da 100 000 peticiones al día.
+- Guarda el token como secreto y la web le pide los datos a él, no a TMDB.
+- Solo deja pasar las rutas y parámetros que usa la app (la misma lista que el proxy del modo server, en [`src/lib/tmdb-routes.ts`](src/lib/tmdb-routes.ts)).
+- Solo responde desde el navegador a los orígenes de `ALLOWED_ORIGINS` en [`worker/wrangler.toml`](worker/wrangler.toml). Si usas dominio propio, añádelo ahí.
+- Guarda cada respuesta en la caché de Cloudflare: casi ninguna visita llega a TMDB y todo va más rápido.
+
+**Una sola vez:**
+
+1. **Cuenta de Cloudflare** (gratis). En *Workers & Pages*, elige tu subdominio de `workers.dev`.
+2. **Token de API:** en *My Profile → API Tokens → Create Token*, usa la plantilla **"Edit Cloudflare Workers"**. Un token de R2 no sirve.
+3. **Secretos en GitHub** (*Settings → Secrets and variables → Actions*). Pégalos solo ahí, nunca en un chat ni en el código:
+   - `CLOUDFLARE_API_TOKEN`: el token del paso 2.
+   - `CLOUDFLARE_ACCOUNT_ID`: aparece en la portada del panel de Cloudflare.
+   - `TMDB_TOKEN`: tu token de lectura (v4) de TMDB.
+4. **Desplegar:** *Actions → Worker TMDB → Run workflow*. Al terminar, el resumen muestra la URL (`https://cinecasino-tmdb.<subdominio>.workers.dev`) y el workflow comprueba que responde.
+5. **Conectar la web:** en *Settings → Secrets and variables → Actions → Variables*, crea `PUBLIC_TMDB_PROXY` con esa URL y vuelve a lanzar *Pages*.
+6. **Limpiar:** cuando la web funcione con el Worker, borra el secreto `PUBLIC_TMDB_TOKEN` y **regenera el token en TMDB**, porque el antiguo ya se publicó. Después actualiza `TMDB_TOKEN` y vuelve a desplegar el Worker.
+
+Para desarrollar en local, pon `PUBLIC_TMDB_PROXY` en tu `.env`: el Worker acepta peticiones desde `http://localhost:4321`.
+
 ## Integración continua y versiones
 
 | Workflow | Cuándo | Qué hace |
 |---|---|---|
 | [`ci.yml`](.github/workflows/ci.yml) | Push a `main`, PRs y a mano | **Web estática:** tipos, compilación bajo un subdirectorio, comprueba que ningún enlace se sale del prefijo y hace una prueba de humo de las páginas. **Servidor:** compila el modo server y prueba registro, sesión, admin, proxy y CSRF. No necesita secretos. |
 | [`pages.yml`](.github/workflows/pages.yml) | Cuando el CI de un push a `main` pasa, o a mano | Compila en modo pages, publica en GitHub Pages y comprueba que la web responde |
+| [`worker.yml`](.github/workflows/worker.yml) | Push a `main` que toque `worker/` o la lista de rutas, o a mano | Despliega el proxy de TMDB en Cloudflare con su secreto y comprueba que responde, que bloquea rutas ajenas y que rechaza otros orígenes |
 | [`release.yml`](.github/workflows/release.yml) | Al subir una etiqueta `v*` | Comprueba que la etiqueta coincide con `package.json`, compila y crea la Release con las notas de `CHANGELOG.md`. Si la versión lleva guion (`-beta.1`), la marca como pre-release. |
 | [`dependabot.yml`](.github/dependabot.yml) | Semanal / mensual | PRs con actualizaciones de npm (Astro agrupado) y de las Actions |
 
@@ -106,7 +134,7 @@ La versión que se ve en el pie de la web sale de `package.json`.
 
 | Dónde | Qué |
 |---|---|
-| `.env` (local) / secreto del repo | `PUBLIC_TMDB_TOKEN` para el modo pages. Las variables del modo server se describen en [`.env.example`](.env.example). |
+| `.env` (local) / variable o secreto del repo | `PUBLIC_TMDB_PROXY` (o, sin Worker, `PUBLIC_TMDB_TOKEN`) para el modo pages. Las variables del modo server se describen en [`.env.example`](.env.example). |
 | [`src/site.ts`](src/site.ts) | Identidad: nombre, palabras del logo, eslogan, fase (`Beta`), responsable, email de contacto y repo. Lo usan los títulos, el logo, el manifest de la app, la landing y los textos legales. Aquí está también `u()`, que añade el prefijo a las rutas internas: **nunca escribas `"/ruleta"` a pelo, usa `u('ruleta')`**. |
 | `public/icons/` | Iconos de la app (192, 512, *maskable*, Apple y favicon) |
 | `public/brand/tmdb.svg` | Logo oficial de TMDB (ver más abajo) |
@@ -117,7 +145,8 @@ La versión que se ve en el pie de la web sale de `package.json`.
 ```
 Navegador ──► GitHub Pages (HTML, CSS y JS estáticos)
    │
-   ├─► api.themoviedb.org   títulos, géneros, fichas   (con PUBLIC_TMDB_TOKEN)
+   ├─► Worker de Cloudflare ─► api.themoviedb.org   títulos, géneros, fichas
+   │     (PUBLIC_TMDB_PROXY; sin Worker, directo a TMDB con PUBLIC_TMDB_TOKEN)
    ├─► image.tmdb.org       carteles
    └─► localStorage         partida: fichas, nivel, botín, logros
 ```

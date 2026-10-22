@@ -12,6 +12,7 @@
     "build": "astro build",
     "build:server": "astro build --mode server",
     "check": "astro check",
+    "test": "vitest run",
     "preview": "astro preview",
     "start": "node --env-file-if-exists=.env dist/server/entry.mjs",
     "astro": "astro"
@@ -28,6 +29,8 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.11",
     "@types/canvas-confetti": "^1.9.0",
-    "typescript": "^6.0.3"
+    "happy-dom": "^21.0.4",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
   }
 }

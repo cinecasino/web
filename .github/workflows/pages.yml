@@ -1,8 +1,9 @@
 name: Pages
 
 # Publica la web estática en GitHub Pages cuando el CI de un push a main termina en verde.
-# Requisitos (una vez): Settings → Pages → Source: "GitHub Actions",
-# y el secreto PUBLIC_TMDB_TOKEN (Settings → Secrets and variables → Actions).
+# Requisitos (una vez): Settings → Pages → Source: "GitHub Actions", y en Settings → Secrets and variables → Actions:
+#   - recomendado: la variable PUBLIC_TMDB_PROXY con la URL del Worker de Cloudflare (worker.yml); el token no sale en la web
+#   - o, sin Worker: el secreto PUBLIC_TMDB_TOKEN, que acaba en el JavaScript público.
 on:
   workflow_run:
     workflows: [CI]
@@ -26,12 +27,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Comprobar secreto
+      - name: Comprobar acceso a TMDB
         env:
+          PUBLIC_TMDB_PROXY: ${{ vars.PUBLIC_TMDB_PROXY }}
           PUBLIC_TMDB_TOKEN: ${{ secrets.PUBLIC_TMDB_TOKEN }}
         run: |
-          if [ -z "$PUBLIC_TMDB_TOKEN" ]; then
-            echo "::error::Falta el secreto PUBLIC_TMDB_TOKEN (Settings → Secrets and variables → Actions). Sin él no cargarían las películas."
+          if [ -n "$PUBLIC_TMDB_PROXY" ]; then
+            echo "✅ Usando el Worker: $PUBLIC_TMDB_PROXY (el token no se incluye en la web)"
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://cinecasino.github.io' "${PUBLIC_TMDB_PROXY%/}/3/movie/550")
+            [ "$code" = 200 ] || { echo "::error::El Worker no responde bien ($code). Revisa worker.yml antes de publicar."; exit 1; }
+          elif [ -n "$PUBLIC_TMDB_TOKEN" ]; then
+            echo "::warning::Sin Worker: el token de TMDB irá en el JavaScript público. Mejor despliega worker/ y crea la variable PUBLIC_TMDB_PROXY."
+          else
+            echo "::error::Falta la variable PUBLIC_TMDB_PROXY o el secreto PUBLIC_TMDB_TOKEN. Sin uno de los dos no cargarían las películas."
             exit 1
           fi
 
@@ -56,8 +64,16 @@ jobs:
           # "" si el repo es <org>.github.io (raíz), "/<repo>" si es un repo normal
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
           SITE_URL: ${{ steps.pages.outputs.origin }}
+          PUBLIC_TMDB_PROXY: ${{ vars.PUBLIC_TMDB_PROXY }}
           PUBLIC_TMDB_TOKEN: ${{ secrets.PUBLIC_TMDB_TOKEN }}
-        run: npm run build
+        run: |
+          # Con Worker, el token no debe llegar al JavaScript publicado: se quita del entorno y se comprueba
+          token="$PUBLIC_TMDB_TOKEN"
+          if [ -n "$PUBLIC_TMDB_PROXY" ]; then unset PUBLIC_TMDB_TOKEN; fi
+          npm run build
+          if [ -n "$PUBLIC_TMDB_PROXY" ] && [ -n "$token" ] && grep -rqF "$token" dist; then
+            echo "::error::El token de TMDB ha aparecido en dist/"; exit 1
+          fi
 
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -1,6 +1,7 @@
 import { details, img, type Details, type Title } from './tmdb';
 import { rarityOf, rarityRank, RARITY, STATUS, statusOf } from './rarity';
-import { addToBotin, inBotin, isSeen, markSeen, type Saved } from './store';
+import { addToBotin, getState, inBotin, isSeen, markSeen, type Saved } from './store';
+import { regionName } from './region';
 import { sfx } from './sfx';
 import * as fx from './fx';
 import { esc, fmt, preload, sleep } from './util';
@@ -80,8 +81,9 @@ export const modalClosed = () => new Promise<void>((r) => dlg().addEventListener
 
 function provRow(label: string, list: Details['providers']['flatrate']) {
   if (!list.length) return '';
+  const mine = new Set(getState().providers);
   return `<div class="prov-row"><span>${label}</span>${list
-    .map((p) => `<img src="${img(p.logo, 'w92')}" alt="${esc(p.name)}" title="${esc(p.name)}">`)
+    .map((p) => `<img src="${img(p.logo, 'w92')}" alt="${esc(p.name)}" title="${esc(p.name)}${mine.has(p.id) ? ' · la tienes' : ''}"${mine.has(p.id) ? ' class="mine"' : ''}>`)
     .join('')}</div>`;
 }
 
@@ -120,6 +122,7 @@ export async function showTitle(t: Title, o: { headline?: string; reveal?: boole
             <span class="rarity-badge">${badge.emoji} ${badge.label}</span>
             <span class="chip">${t.type === 'movie' ? '🎬 Película' : '📺 Serie'}</span>
             ${t.year ? `<span class="chip">📅 ${t.year}</span>` : ''}
+            ${t.offPlatform ? '<span class="chip off-platform" title="No había nada con tus plataformas para esta jugada">📡 Fuera de tus plataformas</span>' : ''}
           </div>
           <h2 class="tm-title">${esc(t.title)}</h2>
           ${t.original && t.original !== t.title ? `<p class="tm-original">${esc(t.original)}</p>` : ''}
@@ -208,9 +211,10 @@ export async function showTitle(t: Title, o: { headline?: string; reveal?: boole
       $('[data-f="meta"]').innerHTML = metaHtml;
       const p = d.providers;
       const rows = provRow('Incluida en', p.flatrate) + provRow('Alquiler', p.rent) + provRow('Compra', p.buy);
+      const country = esc(regionName(getState().region));
       $('[data-f="providers"]').innerHTML = rows
-        ? `<h4>📡 Dónde verla en España</h4>${rows}${p.link ? `<a class="muted-link" href="${p.link}" target="_blank" rel="noopener">Ver todas las opciones ↗</a>` : ''}<p class="attrib">Datos de plataformas: JustWatch</p>`
-        : '<h4>📡 Dónde verla</h4><p class="muted">No figura en plataformas españolas ahora mismo.</p>';
+        ? `<h4>📡 Dónde verla en ${country}</h4>${rows}${p.link ? `<a class="muted-link" href="${p.link}" target="_blank" rel="noopener">Ver todas las opciones ↗</a>` : ''}<p class="attrib">Datos de plataformas: JustWatch</p>`
+        : `<h4>📡 Dónde verla</h4><p class="muted">No figura en plataformas de ${country} ahora mismo.</p>`;
       if (d.trailer) {
         btnTrailer.hidden = false;
         const play = () => {

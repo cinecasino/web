@@ -17,6 +17,12 @@ const isStatic = target !== 'server';
 // El workflow pasa BASE_PATH (p. ej. "/web") y SITE_URL desde actions/configure-pages.
 const basePath = (process.env.BASE_PATH ?? env.BASE_PATH ?? '').replace(/\/+$/, '');
 
+// Con el Worker de Cloudflare (PUBLIC_TMDB_PROXY), el token de TMDB no debe acabar en el JavaScript
+// aunque siga en el .env: se sustituye por "" al compilar.
+const hideToken = isStatic && Boolean(process.env.PUBLIC_TMDB_PROXY || env.PUBLIC_TMDB_PROXY)
+  ? { 'import.meta.env.PUBLIC_TMDB_TOKEN': '""', 'import.meta.env.PUBLIC_TMDB_API_KEY': '""' }
+  : {};
+
 /** Las rutas de src/server-pages solo existen en modo server (GitHub Pages no puede ejecutarlas). */
 function serverRoutes(enabled) {
   const root = 'src/server-pages';
@@ -44,7 +50,7 @@ export default defineConfig({
   integrations: [serverRoutes(!isStatic)],
   server: { open: true },
   vite: {
-    define: { __STATIC_BUILD__: JSON.stringify(isStatic) },
+    define: { __STATIC_BUILD__: JSON.stringify(isStatic), ...hideToken },
   },
   env: {
     schema: {

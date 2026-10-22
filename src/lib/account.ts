@@ -13,7 +13,8 @@ export interface Me {
 }
 
 export interface Announcement {
-  id: number;
+  /** Número para los anuncios del panel de admin; texto para los de eventos de temporada. */
+  id: number | string;
   text: string;
   level: 'info' | 'event' | 'warning';
 }

@@ -1,0 +1,11 @@
+# Worker "cinecasino-tmdb": proxy de TMDB para la web de GitHub Pages.
+# Se despliega solo con .github/workflows/worker.yml; a mano: `npx wrangler deploy` desde esta carpeta.
+# El token de TMDB es un secreto: `npx wrangler secret put TMDB_TOKEN` (el workflow lo sube desde GitHub).
+name = "cinecasino-tmdb"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[vars]
+# Webs que pueden usarlo desde el navegador. Si usas dominio propio, añádelo aquí.
+ALLOWED_ORIGINS = "https://cinecasino.github.io,http://localhost:4321,http://127.0.0.1:4321"

@@ -890,7 +890,7 @@ main { max-width: 1240px; margin: 0 auto; padding: 8px 16px 40px; }
 @keyframes flick { 50% { transform: rotate(-22deg); } }
 .w-emoji { font-size: 26px; }
 .w-name { font-family: var(--display); font-size: 13px; fill: #fff; paint-order: stroke; stroke: #0008; stroke-width: 3px; }
-.w-name.jackpot { fill: #3a1f00; stroke: #fff6; }
+.w-name.on-light { fill: #3a1f00; stroke: #fff6; }
 .w-name.quiebra { fill: var(--red); }
 .w-hub { font-size: 34px; }
 .rim-bulb { fill: #fff3c4; animation: rim 0.6s steps(1) infinite; }
@@ -1164,6 +1164,34 @@ main { max-width: 1240px; margin: 0 auto; padding: 8px 16px 40px; }
 .install-help ol { line-height: 1.8; }
 .install-help h2, .choose-save h2 { font-family: var(--display); }
 
+/* ============ AJUSTES ============ */
+.settings h2 { font-family: var(--display); margin: 0 0 6px; }
+.settings section { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.settings h3 { margin: 0; font-family: var(--display); font-size: 1rem; color: var(--cyan); }
+.settings .select { align-self: flex-start; }
+.prov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.prov-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  border-radius: 14px;
+  border: 2px solid var(--line);
+  background: #ffffff08;
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1.15;
+  text-align: center;
+  filter: grayscale(0.85) brightness(0.8);
+  transition: filter 0.2s, border-color 0.2s, transform 0.15s;
+}
+.prov-btn img { width: 44px; height: 44px; border-radius: 10px; }
+.prov-btn:hover { transform: translateY(-2px); filter: none; }
+.prov-btn[aria-pressed='true'] { filter: none; border-color: var(--gold); background: #ffc93c1a; box-shadow: 0 0 14px #ffc93c55; }
+.prov-row img.mine { outline: 3px solid var(--gold); outline-offset: 2px; box-shadow: 0 0 12px var(--gold); }
+.chip.off-platform { border-color: var(--cyan); color: var(--cyan); }
+
 /* ============ ELEGIR PARTIDA ============ */
 .choose-save { text-align: center; }
 .save-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 18px 0; }
@@ -1383,6 +1411,35 @@ textarea { resize: vertical; }
 }
 .stage-note { display: inline-block; margin: 4px 0 0; padding: 8px 14px; border-radius: 12px; font-size: 0.85rem; color: var(--cyan); background: #29f0ff14; border: 1px solid #29f0ff44; }
 .sf-version { font-family: ui-monospace, monospace; font-size: 0.75rem; opacity: 0.7; align-self: center; }
+
+/* ============ EVENTOS DE TEMPORADA ============ */
+/* src/lib/site.ts pone ev-<id> en el <body>: basta con redefinir los colores para teñir toda la web */
+.ev-halloween { --pink: #ff7a1a; --cyan: #b46bff; --gold: #ffb020; --purple: #6a1fb0; }
+.ev-halloween::before {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #4a1a00 0%, transparent 60%),
+    radial-gradient(900px 600px at 110% 10%, #2e0a4a 0%, transparent 55%),
+    radial-gradient(1000px 700px at 50% 120%, #12300a 0%, transparent 60%),
+    var(--bg);
+}
+.ev-halloween .neon-pink { color: #ffe2c8; }
+.event-card { position: relative; overflow: hidden; }
+.event-card::after {
+  content: 'TEMPORADA';
+  position: absolute;
+  top: 16px;
+  right: -34px;
+  rotate: 38deg;
+  padding: 3px 40px;
+  font-family: var(--display);
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+  color: #1a0a00;
+  background: var(--c);
+  box-shadow: 0 0 12px var(--c);
+}
+.ev-tag { font-family: var(--body); font-size: 0.62rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 2px 6px; border-radius: 6px; background: var(--pink); color: #1a0a00; vertical-align: middle; }
+.ach.ev-ach.locked { filter: none; opacity: 1; border-color: var(--pink); border-style: dashed; }
 
 /* ============ REDUCIR MOVIMIENTO ============ */
 /* Si el sistema pide menos movimiento: fuera el fondo animado y los bucles decorativos (pulsos, brillos,

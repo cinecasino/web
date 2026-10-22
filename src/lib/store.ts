@@ -1,9 +1,10 @@
 import type { MediaType, Title } from './tmdb';
 import { rarityOf, RARITY, statusOf, type Rarity } from './rarity';
-import { ACHIEVEMENTS, type Achievement } from './achievements';
+import { availableAchievements, type Achievement } from './achievements';
 import { localDate } from './util';
 
 export type Mode = MediaType | 'both';
+export type Lang = 'es-ES' | 'en-US';
 
 export interface Saved {
   key: string;
@@ -30,6 +31,8 @@ export interface Stats {
   boxes: number;
   hilo: number;
   hiloBest: number;
+  /** Cajas Malditas abiertas (Halloween). */
+  cursed: number;
   bankrupt: number;
   seen: number;
   won: number;
@@ -49,6 +52,14 @@ export interface State {
   daily: { last: string; streak: number };
   mode: Mode;
   muted: boolean;
+  /** Plataformas elegidas (ids de proveedor de TMDB, dependen del país). */
+  providers: number[];
+  /** Si está activo y hay plataformas elegidas, los juegos solo dan títulos incluidos en ellas. */
+  providersOnly: boolean;
+  /** Idioma de títulos y sinopsis de TMDB. La interfaz sigue en español. */
+  lang: Lang;
+  /** País para "dónde verla" y para la lista de plataformas. */
+  region: string;
   /** Última modificación: decide qué versión gana al sincronizar con la cuenta. */
   updatedAt: number;
   /** Cuenta dueña de esta partida (undefined = invitado). */
@@ -68,10 +79,14 @@ const fresh = (): State => ({
   botin: [],
   seenKeys: [],
   achievements: {},
-  stats: { slots: 0, jackpots: 0, roulette: 0, quiebras: 0, scratches: 0, boxes: 0, hilo: 0, hiloBest: 0, bankrupt: 0, seen: 0, won: 0, spent: 0 },
+  stats: { slots: 0, jackpots: 0, roulette: 0, quiebras: 0, scratches: 0, boxes: 0, hilo: 0, hiloBest: 0, cursed: 0, bankrupt: 0, seen: 0, won: 0, spent: 0 },
   daily: { last: '', streak: 0 },
   mode: 'movie',
   muted: false,
+  providers: [],
+  providersOnly: false,
+  lang: 'es-ES',
+  region: 'ES',
   updatedAt: 0,
 });
 
@@ -114,7 +129,7 @@ function commit(detail: Partial<ChangeDetail> = {}) {
 
 function checkAchievements() {
   const unlocked: Achievement[] = [];
-  for (const a of ACHIEVEMENTS) {
+  for (const a of availableAchievements(state)) {
     if (state.achievements[a.id]) continue;
     if (a.value(state) >= a.goal) {
       state.achievements[a.id] = Date.now();
@@ -205,6 +220,28 @@ export function toggleMute() {
   state.muted = !state.muted;
   commit();
 }
+
+export function setProviders(ids: number[], only = state.providersOnly) {
+  state.providers = [...new Set(ids)];
+  state.providersOnly = only;
+  commit();
+}
+
+export function setLang(lang: Lang) {
+  state.lang = lang;
+  commit();
+}
+
+/** Los ids de plataforma cambian según el país: al cambiar de país se vacía la selección. */
+export function setRegion(region: string) {
+  if (region === state.region) return;
+  state.region = region;
+  state.providers = [];
+  commit();
+}
+
+/** El filtro "solo mis plataformas" solo cuenta si hay alguna elegida. */
+export const providerFilterOn = () => state.providersOnly && state.providers.length > 0;
 
 export const inBotin = (key: string) => state.botin.some((b) => b.key === key);
 export const isSeen = (key: string) => state.seenKeys.includes(key);

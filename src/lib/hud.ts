@@ -6,6 +6,7 @@ import { openModal, register } from './card';
 import { trending } from './tmdb';
 import type { Achievement } from './achievements';
 import { esc, fmt, sleep } from './util';
+import { filterBadge, openSettings } from './settings';
 
 const $ = (id: string) => document.getElementById(id)!;
 const MODES: Record<Mode, string> = { movie: '🎬 Pelis', tv: '📺 Series', both: '🎲 Todo' };
@@ -30,7 +31,7 @@ function render() {
   $('xp-text').textContent = `${fmt(s.xp)} / ${fmt(need)} XP`;
   $('hud-daily').classList.toggle('available', dailyAvailable());
   ($('hud-rescue') as HTMLButtonElement).hidden = s.coins >= MIN_BET;
-  $('hud-mode').textContent = MODES[s.mode];
+  $('hud-mode').textContent = MODES[s.mode] + filterBadge();
   $('hud-mute').textContent = s.muted ? '🔇' : '🔊';
   $('hud-mute').setAttribute('aria-pressed', String(s.muted));
 }
@@ -77,6 +78,8 @@ $('hud-mode').addEventListener('click', () => {
   sfx.click();
   fx.toast(`Modo: <b>${MODES[next]}</b>. Los juegos te darán ${next === 'movie' ? 'películas' : next === 'tv' ? 'series' : 'de todo'}.`, { icon: '🎛️' });
 });
+
+$('hud-settings').addEventListener('click', openSettings);
 
 $('hud-mute').addEventListener('click', () => {
   toggleMute();

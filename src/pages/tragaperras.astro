@@ -53,20 +53,13 @@ import Casino from '../layouts/Casino.astro';
 
 <script>
   import { getState, spend, earn, stat, bumpJackpot, takeJackpot } from '../lib/store';
-  import { SYMBOLS } from '../lib/genres';
   import { luckyPick, pickType, type Title } from '../lib/tmdb';
   import { grantClaim, showTitle, tileHTML } from '../lib/card';
+  import { evaluate, matches, roll, type Kind, type Sym } from '../lib/slots';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
-  import { fmt, rand, sleep, weighted } from '../lib/util';
+  import { fmt, rand, sleep } from '../lib/util';
 
-  type Sym = { key: string; emoji: string; name: string; movie?: number; tv?: number };
-  type Kind = 'none' | 'pair' | 'jackpot' | 'mega';
-
-  const WILD: Sym = { key: 'wild', emoji: '⭐', name: 'COMODÍN' };
-  const REEL_KEYS = ['accion', 'comedia', 'terror', 'scifi', 'drama', 'animacion', 'crimen'];
-  const POOL: Sym[] = [...SYMBOLS.filter((s) => REEL_KEYS.includes(s.key)).map((s) => ({ ...s, name: s.short ?? s.name })), WILD];
-  const roll = () => weighted(POOL, (s) => (s.key === 'wild' ? 0.55 : 1));
   const MIN_VOTE: Record<number, number> = { 50: 5.8, 100: 6.6, 250: 7.2 };
 
   const machine = document.getElementById('machine')!;
@@ -114,19 +107,6 @@ import Casino from '../layouts/Casino.astro';
       setTimeout(() => reels[i].classList.remove('stopped'), 350);
       sfx.thud();
     });
-  }
-
-  const matches = (a: Sym, b: Sym) => a.key === b.key || a.key === 'wild' || b.key === 'wild';
-
-  function evaluate(r: Sym[]): { kind: Kind; mult: number } {
-    const wilds = r.filter((s) => s.key === 'wild').length;
-    if (wilds === 3) return { kind: 'mega', mult: 0 };
-    const counts = new Map<string, number>();
-    r.forEach((s) => s.key !== 'wild' && counts.set(s.key, (counts.get(s.key) ?? 0) + 1));
-    const best = Math.max(...counts.values()) + wilds;
-    if (best >= 3) return { kind: 'jackpot', mult: 10 };
-    if (best === 2) return { kind: 'pair', mult: 1.5 };
-    return { kind: 'none', mult: 0 };
   }
 
   function findTitle(r: Sym[], kind: Kind, b: number): Promise<Title | null> {

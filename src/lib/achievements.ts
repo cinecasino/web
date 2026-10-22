@@ -1,4 +1,6 @@
 import type { State } from './store';
+import { activeEvent, EVENTS, eventWindow, type GameEvent } from './events';
+import { symbol } from './genres';
 
 export interface Achievement {
   id: string;
@@ -8,10 +10,21 @@ export interface Achievement {
   goal: number;
   reward: number;
   value: (s: State) => number;
+  /** Logro de temporada: solo se puede conseguir (y solo se enseña, si no lo tienes) durante ese evento. */
+  event?: GameEvent['id'];
 }
 
 const plays = (s: State) => s.stats.slots + s.stats.roulette + s.stats.scratches + s.stats.boxes + s.stats.hilo;
 const owned = (r: string) => (s: State) => s.botin.filter((b) => b.rarity === r).length;
+
+// Halloween: títulos de terror guardados dentro de las fechas del evento de este año
+const HALLOWEEN = EVENTS.find((e) => e.id === 'halloween')!;
+const YEAR = new Date().getFullYear();
+const TERROR = symbol('terror');
+const horrorDuringEvent = (s: State) => {
+  const [from, to] = eventWindow(HALLOWEEN);
+  return s.botin.filter((b) => b.addedAt >= from && b.addedAt <= to && b.genres.includes(b.type === 'movie' ? TERROR.movie : TERROR.tv)).length;
+};
 
 export const ACHIEVEMENTS: Achievement[] = [
   { id: 'first', icon: '🎲', name: 'Bautismo de fuego', desc: 'Juega tu primera partida', goal: 1, reward: 50, value: plays },
@@ -36,4 +49,12 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'boxes10', icon: '🎁', name: 'Unboxer', desc: 'Abre 10 cajas de botín', goal: 10, reward: 250, value: (s) => s.stats.boxes },
   { id: 'scratch10', icon: '🎟️', name: 'Uñas de acero', desc: 'Rasca 10 boletos', goal: 10, reward: 150, value: (s) => s.stats.scratches },
   { id: 'wheel25', icon: '🎡', name: 'Mareado', desc: 'Gira la ruleta 25 veces', goal: 25, reward: 200, value: (s) => s.stats.roulette },
+  { id: `halloween-${YEAR}`, icon: '🎃', name: `Noche de difuntos ${YEAR}`, desc: 'Guarda 3 títulos de terror durante Halloween', goal: 3, reward: 666, value: horrorDuringEvent, event: 'halloween' },
+  { id: 'cursed-box', icon: '⚰️', name: 'Profanador', desc: 'Abre la Caja Maldita de Halloween', goal: 1, reward: 300, value: (s) => s.stats.cursed, event: 'halloween' },
 ];
+
+/** Los de temporada solo cuentan con su evento activo, salvo los que ya tienes. */
+export function availableAchievements(s: State): Achievement[] {
+  const ev = activeEvent()?.id;
+  return ACHIEVEMENTS.filter((a) => !a.event || a.event === ev || s.achievements[a.id]);
+}

@@ -1,6 +1,6 @@
 // Service worker de Cine Casino: app instalable y uso sin conexión.
 // Sube VERSION al cambiar este archivo para invalidar las cachés antiguas.
-const VERSION = 'v3';
+const VERSION = 'v5';
 const SHELL = `shell-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const IMAGES = 'tmdb-img-v1';
@@ -71,8 +71,9 @@ self.addEventListener('fetch', (e) => {
 
   // Carteles de TMDB: caché primero (no cambian)
   if (url.hostname === 'image.tmdb.org') return e.respondWith(cacheFirst(req, IMAGES));
-  // Datos de TMDB (directo en GitHub Pages, o vía nuestro proxy): red primero, caché si no hay conexión
-  if (url.hostname === 'api.themoviedb.org') return e.respondWith(networkFirst(req, DATA));
+  // Datos de TMDB (directo, vía el Worker de Cloudflare o vía nuestro proxy): red primero, caché si no hay conexión
+  if (url.hostname === 'api.themoviedb.org' || (url.origin !== self.location.origin && url.pathname.startsWith('/3/')))
+    return e.respondWith(networkFirst(req, DATA));
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith(at('api/tmdb/'))) return e.respondWith(networkFirst(req, DATA));
   // Resto de la API (cuenta, partidas, admin): nunca desde caché

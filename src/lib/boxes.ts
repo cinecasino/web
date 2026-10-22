@@ -1,4 +1,5 @@
 import type { Rarity } from './rarity';
+import type { GameEvent } from './events';
 
 export interface Box {
   id: string;
@@ -7,6 +8,10 @@ export interface Box {
   price: number;
   color: string;
   odds: Record<Rarity, number>;
+  /** Caja de temporada: solo se vende durante ese evento. */
+  event?: GameEvent['id'];
+  /** Solo títulos de estos géneros de película (la Maldita: terror). */
+  genres?: number[];
 }
 
 export const BOXES: Box[] = [
@@ -14,6 +19,7 @@ export const BOXES: Box[] = [
   { id: 'plata', name: 'Caja de Plata', icon: '🎁', price: 120, color: '#c8d0e0', odds: { comun: 22, rara: 38, epica: 26, legendaria: 10, mitica: 4 } },
   { id: 'oro', name: 'Caja de Oro', icon: '👑', price: 300, color: '#ffc93c', odds: { comun: 0, rara: 15, epica: 42, legendaria: 30, mitica: 13 } },
   { id: 'diamante', name: 'Caja Diamante', icon: '💎', price: 750, color: '#29f0ff', odds: { comun: 0, rara: 0, epica: 25, legendaria: 45, mitica: 30 } },
+  { id: 'maldita', name: 'Caja Maldita', icon: '🎃', price: 333, color: '#ff7a1a', odds: { comun: 30, rara: 30, epica: 22, legendaria: 12, mitica: 6 }, event: 'halloween', genres: [27] },
 ];
 
 /** Fichas que te llevas según la rareza del título que toque. */

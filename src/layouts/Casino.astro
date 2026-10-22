@@ -29,10 +29,12 @@ const issues = issuesUrl();
 const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
 const ogImage = new URL(u('screenshots/wide.png'), Astro.site ?? 'http://localhost').href;
 
-const nav = [
+// `event`: entrada de temporada; se compila oculta y src/lib/site.ts la muestra durante el evento
+const nav: { href: string; label: string; icon: string; key: string; event?: string }[] = [
   { href: u(), label: 'Lobby', icon: '🏛️', key: 'lobby' },
   { href: u('tragaperras'), label: 'Tragaperras', icon: '🎰', key: 'slots' },
   { href: u('ruleta'), label: 'Ruleta', icon: '🎡', key: 'ruleta' },
+  { href: u('ruleta-terror'), label: 'Terror', icon: '🎃', key: 'terror', event: 'halloween' },
   { href: u('cajas'), label: 'Cajas', icon: '🎁', key: 'cajas' },
   { href: u('rasca'), label: 'Rasca', icon: '🎟️', key: 'rasca' },
   { href: u('mayor-menor'), label: '¿Más o Menos?', icon: '🃏', key: 'hilo' },
@@ -105,13 +107,20 @@ const nav = [
               <button id="hud-rescue" class="chip rescue" hidden>🆘 Rescate</button>
               <button id="hud-mode" class="chip" title="Películas, series o ambas">🎬 Pelis</button>
               <button id="hud-mute" class="chip" title="Sonido" aria-label="Silenciar" aria-pressed="false">🔊</button>
+              <button id="hud-settings" class="chip" title="Ajustes: plataformas, país e idioma" aria-label="Ajustes">⚙️</button>
               <button class="chip install-chip" data-install hidden title="Instalar como app">📲 Instalar</button>
               {ACCOUNTS && <span class="user-slot" data-user-slot />}
             </div>
           </header>
           <nav class="nav" aria-label="Juegos">
             {nav.map((n) => (
-              <a href={n.href} class:list={[{ active: n.key === active }]} aria-current={n.key === active ? 'page' : undefined}>
+              <a
+                href={n.href}
+                class:list={[{ active: n.key === active }]}
+                aria-current={n.key === active ? 'page' : undefined}
+                data-event={n.event}
+                hidden={!!n.event}
+              >
                 <span aria-hidden="true">{n.icon}</span>
                 {n.label}
               </a>

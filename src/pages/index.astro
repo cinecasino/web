@@ -2,8 +2,10 @@
 import Casino from '../layouts/Casino.astro';
 import { SITE, u, ACCOUNTS } from '../site';
 
-// `cost` es opcional: lo que no es un juego (Mi Botín) no muestra precio y su botón dice "IR"
-const games: { href: string; icon: string; name: string; desc: string; cost?: string; color: string; cta?: string }[] = [
+// `cost` es opcional: lo que no es un juego (Mi Botín) no muestra precio y su botón dice "IR".
+// `event`: tarjeta de temporada, compilada oculta; src/lib/site.ts la muestra durante el evento.
+const games: { href: string; icon: string; name: string; desc: string; cost?: string; color: string; cta?: string; event?: string }[] = [
+  { href: u('ruleta-terror'), icon: '🎃', name: 'Ruleta del Terror', desc: 'Solo hasta el 2 de noviembre: subgéneros de terror, 🎃 x3 y un jackpot de 666.', cost: '30', color: '#ff7a1a', event: 'halloween' },
   { href: u('tragaperras'), icon: '🎰', name: 'Tragaperras', desc: 'Tres rodillos de géneros. Alinea iguales y gana fichas… y una peli.', cost: 'desde 50', color: '#ff2f55' },
   { href: u('ruleta'), icon: '🎡', name: 'Ruleta de Géneros', desc: 'Gira la rueda. ¿Comedia? ¿Terror? ¿QUIEBRA?', cost: '30', color: '#2bff88' },
   { href: u('cajas'), icon: '🎁', name: 'Cajas de Botín', desc: 'Abre cajas y consigue títulos Legendarios y Míticos.', cost: 'desde 40', color: '#ffc93c' },
@@ -27,7 +29,7 @@ const games: { href: string; icon: string; name: string; desc: string; cost?: st
   <section class="games-grid">
     {
       games.map((g) => (
-        <a class="game-card" href={g.href} style={`--c:${g.color}`}>
+        <a class:list={['game-card', { 'event-card': g.event }]} href={g.href} style={`--c:${g.color}`} data-event={g.event} hidden={!!g.event}>
           <div class="game-icon">{g.icon}</div>
           <h3>{g.name}</h3>
           <p>{g.desc}</p>
@@ -52,7 +54,7 @@ const games: { href: string; icon: string; name: string; desc: string; cost?: st
   import { getState, spend } from '../lib/store';
   import { luckyPick, pickType, trending } from '../lib/tmdb';
   import { showTitle, tileHTML } from '../lib/card';
-  import { ACHIEVEMENTS } from '../lib/achievements';
+  import { availableAchievements } from '../lib/achievements';
   import { RARITIES, RARITY } from '../lib/rarity';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
@@ -106,13 +108,14 @@ const games: { href: string; icon: string; name: string; desc: string; cost?: st
 
   function renderPlayer() {
     const s = getState();
-    const unlocked = ACHIEVEMENTS.filter((a) => s.achievements[a.id]).length;
+    const achs = availableAchievements(s);
+    const unlocked = achs.filter((a) => s.achievements[a.id]).length;
     const counts = RARITIES.map((r) => `<span class="rc r-${r}">${RARITY[r].emoji} ${s.botin.filter((b) => b.rarity === r).length}</span>`).join('');
     document.getElementById('player')!.innerHTML = `
       <div><small>NIVEL</small><b>${s.level}</b></div>
       <div><small>FICHAS</small><b>${fmt(s.coins)}</b></div>
       <div><small>BOTÍN</small><b>${s.botin.length}</b><span class="rcs">${counts}</span></div>
-      <div><small>LOGROS</small><b>${unlocked}/${ACHIEVEMENTS.length}</b></div>
+      <div><small>LOGROS</small><b>${unlocked}/${achs.length}</b></div>
       <div><small>RACHA DIARIA</small><b>${s.daily.streak} 🔥</b></div>`;
   }
   renderPlayer();
