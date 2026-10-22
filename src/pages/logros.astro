@@ -21,100 +21,103 @@ import Casino from '../layouts/Casino.astro';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
   import { esc, fmt } from '../lib/util';
+  import { onPage } from '../lib/page';
 
-  /** Tiempo hasta medianoche (diarias) o hasta el lunes (semanales). */
-  function timeLeft(period: 'day' | 'week') {
-    const now = new Date();
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (period === 'day' ? 1 : 8 - (((now.getDay() + 6) % 7) + 1)));
-    const ms = +end - +now;
-    const d = Math.floor(ms / 864e5);
-    const h = Math.floor((ms % 864e5) / 36e5);
-    const m = Math.floor((ms % 36e5) / 6e4);
-    return d ? `${d}d ${h}h` : `${h}h ${m}m`;
-  }
+  onPage('#ach-grid', (page) => {
+    /** Tiempo hasta medianoche (diarias) o hasta el lunes (semanales). */
+    function timeLeft(period: 'day' | 'week') {
+      const now = new Date();
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (period === 'day' ? 1 : 8 - (((now.getDay() + 6) % 7) + 1)));
+      const ms = +end - +now;
+      const d = Math.floor(ms / 864e5);
+      const h = Math.floor((ms % 864e5) / 36e5);
+      const m = Math.floor((ms % 36e5) / 6e4);
+      return d ? `${d}d ${h}h` : `${h}h ${m}m`;
+    }
 
-  function renderQuests() {
-    const list = questList();
-    const block = (period: 'day' | 'week', title: string) => `
-      <div class="quest-group">
-        <h3>${title} <small class="muted">· se renuevan en ${timeLeft(period)}</small></h3>
-        ${list
-          .filter((q) => q.item.period === period)
-          .map(
-            ({ quest, done, complete, item }) => `<div class="quest${complete ? ' complete' : ''}${item.claimed ? ' claimed' : ''}">
-              <span class="quest-icon">${quest.icon}</span>
-              <div class="quest-body">
-                <b>${esc(quest.text)}</b>
-                <div class="bar sm"><i style="width:${(done / quest.goal) * 100}%"></i></div>
-                <small>${done}/${quest.goal} · premio ${fmt(quest.reward)} 🪙</small>
-              </div>
-              ${item.claimed ? '<span class="chip">✅ Cobrada</span>' : complete ? `<button class="btn btn-gold" data-quest="${esc(item.id)}" data-period="${period}">Cobrar</button>` : ''}
-            </div>`,
-          )
-          .join('')}
-      </div>`;
-    document.getElementById('quests')!.innerHTML = block('day', '📅 De hoy') + block('week', '🗓️ De la semana');
-  }
+    function renderQuests() {
+      const list = questList();
+      const block = (period: 'day' | 'week', title: string) => `
+        <div class="quest-group">
+          <h3>${title} <small class="muted">· se renuevan en ${timeLeft(period)}</small></h3>
+          ${list
+            .filter((q) => q.item.period === period)
+            .map(
+              ({ quest, done, complete, item }) => `<div class="quest${complete ? ' complete' : ''}${item.claimed ? ' claimed' : ''}">
+                <span class="quest-icon">${quest.icon}</span>
+                <div class="quest-body">
+                  <b>${esc(quest.text)}</b>
+                  <div class="bar sm"><i style="width:${(done / quest.goal) * 100}%"></i></div>
+                  <small>${done}/${quest.goal} · premio ${fmt(quest.reward)} 🪙</small>
+                </div>
+                ${item.claimed ? '<span class="chip">✅ Cobrada</span>' : complete ? `<button class="btn btn-gold" data-quest="${esc(item.id)}" data-period="${period}">Cobrar</button>` : ''}
+              </div>`,
+            )
+            .join('')}
+        </div>`;
+      document.getElementById('quests')!.innerHTML = block('day', '📅 De hoy') + block('week', '🗓️ De la semana');
+    }
 
-  document.getElementById('quests')!.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-quest]');
-    if (!b) return;
-    const coins = claimQuest(b.dataset.quest!, b.dataset.period as 'day' | 'week');
-    if (!coins) return;
-    sfx.coins(8);
-    fx.floatFrom(b, `+${fmt(coins)} 🪙`, 'pos');
-    fx.coinRain(30);
+    document.getElementById('quests')!.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-quest]');
+      if (!b) return;
+      const coins = claimQuest(b.dataset.quest!, b.dataset.period as 'day' | 'week');
+      if (!coins) return;
+      sfx.coins(8);
+      fx.floatFrom(b, `+${fmt(coins)} 🪙`, 'pos');
+      fx.coinRain(30);
+    });
+
+    function render() {
+      renderQuests();
+      const s = getState();
+      // Los de temporada van primero mientras dura el evento
+      const list = availableAchievements(s).sort((a, b) => Number(!!b.event && !s.achievements[b.id]) - Number(!!a.event && !s.achievements[a.id]));
+      const done = list.filter((a) => s.achievements[a.id]).length;
+      document.getElementById('progress')!.innerHTML = `
+        <div class="bar"><i style="width:${(done / list.length) * 100}%"></i></div>
+        <b>${done} / ${list.length}</b> desbloqueados`;
+
+      document.getElementById('ach-grid')!.innerHTML = list.map((a) => {
+        const at = s.achievements[a.id];
+        const v = Math.min(a.goal, a.value(s));
+        return `<div class="ach ${at ? 'unlocked' : 'locked'}${a.event ? ` ev-ach` : ''}">
+          <div class="ach-icon">${at ? a.icon : '🔒'}</div>
+          <div class="ach-body">
+            <h4>${esc(a.name)}${a.event && !at ? ' <span class="ev-tag">temporada</span>' : ''}</h4>
+            <p>${esc(a.desc)}</p>
+            ${
+              at
+                ? `<small>✅ ${new Date(at).toLocaleDateString('es-ES')} · +${fmt(a.reward)} 🪙</small>`
+                : `<div class="bar sm"><i style="width:${(v / a.goal) * 100}%"></i></div><small>${fmt(v)} / ${fmt(a.goal)} · premio ${fmt(a.reward)} 🪙</small>`
+            }
+          </div>
+        </div>`;
+      }).join('');
+
+      const st = s.stats;
+      const rows: [string, string][] = [
+        ['⭐ Nivel', `${s.level} (${fmt(s.xp)}/${fmt(xpForLevel(s.level))} XP)`],
+        ['🪙 Fichas', fmt(s.coins)],
+        ['📈 Fichas ganadas', fmt(st.won)],
+        ['📉 Fichas apostadas', fmt(st.spent)],
+        ['🎰 Tiradas', fmt(st.slots)],
+        ['💥 Jackpots', fmt(st.jackpots)],
+        ['🎡 Giros de ruleta', fmt(st.roulette)],
+        ['💀 Quiebras', fmt(st.quiebras)],
+        ['🎟️ Boletos rascados', fmt(st.scratches)],
+        ['🎁 Cajas abiertas', fmt(st.boxes)],
+        ['🃏 Partidas ¿Más o Menos?', fmt(st.hilo)],
+        ['🂡 Manos de Blackjack', `${fmt(st.blackjack)} (${fmt(st.blackjackWins)} ganadas)`],
+        ['🔥 Mejor racha', fmt(st.hiloBest)],
+        ['🍿 Títulos vistos', fmt(st.seen)],
+        ...(st.cursed ? [['🎃 Cajas Malditas', fmt(st.cursed)] as [string, string]] : []),
+        ['🆘 Rescates', fmt(st.bankrupt)],
+        ['📅 Racha diaria', `${s.daily.streak} días`],
+      ];
+      document.getElementById('stats')!.innerHTML = rows.map(([k, v]) => `<div class="stat"><small>${k}</small><b>${v}</b></div>`).join('');
+    }
+    render();
+    page.on(window, 'casino:change', render);
   });
-
-  function render() {
-    renderQuests();
-    const s = getState();
-    // Los de temporada van primero mientras dura el evento
-    const list = availableAchievements(s).sort((a, b) => Number(!!b.event && !s.achievements[b.id]) - Number(!!a.event && !s.achievements[a.id]));
-    const done = list.filter((a) => s.achievements[a.id]).length;
-    document.getElementById('progress')!.innerHTML = `
-      <div class="bar"><i style="width:${(done / list.length) * 100}%"></i></div>
-      <b>${done} / ${list.length}</b> desbloqueados`;
-
-    document.getElementById('ach-grid')!.innerHTML = list.map((a) => {
-      const at = s.achievements[a.id];
-      const v = Math.min(a.goal, a.value(s));
-      return `<div class="ach ${at ? 'unlocked' : 'locked'}${a.event ? ` ev-ach` : ''}">
-        <div class="ach-icon">${at ? a.icon : '🔒'}</div>
-        <div class="ach-body">
-          <h4>${esc(a.name)}${a.event && !at ? ' <span class="ev-tag">temporada</span>' : ''}</h4>
-          <p>${esc(a.desc)}</p>
-          ${
-            at
-              ? `<small>✅ ${new Date(at).toLocaleDateString('es-ES')} · +${fmt(a.reward)} 🪙</small>`
-              : `<div class="bar sm"><i style="width:${(v / a.goal) * 100}%"></i></div><small>${fmt(v)} / ${fmt(a.goal)} · premio ${fmt(a.reward)} 🪙</small>`
-          }
-        </div>
-      </div>`;
-    }).join('');
-
-    const st = s.stats;
-    const rows: [string, string][] = [
-      ['⭐ Nivel', `${s.level} (${fmt(s.xp)}/${fmt(xpForLevel(s.level))} XP)`],
-      ['🪙 Fichas', fmt(s.coins)],
-      ['📈 Fichas ganadas', fmt(st.won)],
-      ['📉 Fichas apostadas', fmt(st.spent)],
-      ['🎰 Tiradas', fmt(st.slots)],
-      ['💥 Jackpots', fmt(st.jackpots)],
-      ['🎡 Giros de ruleta', fmt(st.roulette)],
-      ['💀 Quiebras', fmt(st.quiebras)],
-      ['🎟️ Boletos rascados', fmt(st.scratches)],
-      ['🎁 Cajas abiertas', fmt(st.boxes)],
-      ['🃏 Partidas ¿Más o Menos?', fmt(st.hilo)],
-      ['🂡 Manos de Blackjack', `${fmt(st.blackjack)} (${fmt(st.blackjackWins)} ganadas)`],
-      ['🔥 Mejor racha', fmt(st.hiloBest)],
-      ['🍿 Títulos vistos', fmt(st.seen)],
-      ...(st.cursed ? [['🎃 Cajas Malditas', fmt(st.cursed)] as [string, string]] : []),
-      ['🆘 Rescates', fmt(st.bankrupt)],
-      ['📅 Racha diaria', `${s.daily.streak} días`],
-    ];
-    document.getElementById('stats')!.innerHTML = rows.map(([k, v]) => `<div class="stat"><small>${k}</small><b>${v}</b></div>`).join('');
-  }
-  render();
-  window.addEventListener('casino:change', render);
 </script>

@@ -58,259 +58,262 @@ import Casino from '../layouts/Casino.astro';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
   import { fmt, rand, randInt, shuffle, weighted } from '../lib/util';
+  import { onPage } from '../lib/page';
 
-  const COST = 25;
-  const SYMS = [
-    { e: '🍒', mult: 3, w: 30 },
-    { e: '🍋', mult: 4, w: 24 },
-    { e: '🔔', mult: 5, w: 18 },
-    { e: '⭐', mult: 10, w: 12 },
-    { e: '💎', mult: 20, w: 6 },
-    { e: '7️⃣', mult: 50, w: 2 },
-  ];
-  type Sym = (typeof SYMS)[number];
-  const roll = () => weighted(SYMS, (s) => s.w);
+  onPage('#scratch', (page) => {
+    const COST = 25;
+    const SYMS = [
+      { e: '🍒', mult: 3, w: 30 },
+      { e: '🍋', mult: 4, w: 24 },
+      { e: '🔔', mult: 5, w: 18 },
+      { e: '⭐', mult: 10, w: 12 },
+      { e: '💎', mult: 20, w: 6 },
+      { e: '7️⃣', mult: 50, w: 2 },
+    ];
+    type Sym = (typeof SYMS)[number];
+    const roll = () => weighted(SYMS, (s) => s.w);
 
-  function deal(): Sym[] {
-    if (Math.random() < 0.14) {
-      const s = roll();
-      return [s, s, s];
+    function deal(): Sym[] {
+      if (Math.random() < 0.14) {
+        const s = roll();
+        return [s, s, s];
+      }
+      const a = roll();
+      let b = roll();
+      while (b === a) b = roll();
+      if (Math.random() < 0.6) return shuffle([a, a, b]);
+      const c = roll();
+      return [a, b, c];
     }
-    const a = roll();
-    let b = roll();
-    while (b === a) b = roll();
-    if (Math.random() < 0.6) return shuffle([a, a, b]);
-    const c = roll();
-    return [a, b, c];
-  }
 
-  const card = document.getElementById('card')!;
-  const body = document.getElementById('sc-body')!;
-  const canvas = document.getElementById('scratch') as HTMLCanvasElement;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-  const buy = document.getElementById('buy') as HTMLButtonElement;
-  const revealAll = document.getElementById('reveal-all') as HTMLButtonElement;
-  const seeTitle = document.getElementById('see-title') as HTMLButtonElement;
-  const symEls = [...document.querySelectorAll<HTMLElement>('.sc-sym')];
+    const card = document.getElementById('card')!;
+    const body = document.getElementById('sc-body')!;
+    const canvas = document.getElementById('scratch') as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+    const buy = document.getElementById('buy') as HTMLButtonElement;
+    const revealAll = document.getElementById('reveal-all') as HTMLButtonElement;
+    const seeTitle = document.getElementById('see-title') as HTMLButtonElement;
+    const symEls = [...document.querySelectorAll<HTMLElement>('.sc-sym')];
 
-  const resultEl = document.getElementById('sc-result')!;
-  const labelEl = document.getElementById('sc-label')!;
-  const tallyEl = document.getElementById('tally')!;
-  const tally = { tickets: 0, wins: 0, balance: 0 };
-  function renderTally() {
-    const b = tally.balance;
-    tallyEl.innerHTML = `Esta sesión: <b>${tally.tickets}</b> boletos · <b>${tally.wins}</b> premiados · balance <b class="${b >= 0 ? 'pos' : 'neg'}">${b >= 0 ? '+' : '−'}${fmt(Math.abs(b))} 🪙</b>`;
-  }
-
-  let syms: Sym[] = [];
-  let title: Title | null = null;
-  let titleP: Promise<Title | null> = Promise.resolve(null);
-  let active = false;
-  let last: { x: number; y: number } | null = null;
-  let moves = 0;
-  let lastSound = 0;
-  let coverW = 0;
-
-  function drawCover() {
-    coverW = body.clientWidth;
-    const r = body.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = r.width * dpr;
-    canvas.height = r.height * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const w = r.width;
-    const h = r.height;
-    ctx.globalCompositeOperation = 'source-over';
-    const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, '#9c9cb4');
-    g.addColorStop(0.35, '#e9e9f3');
-    g.addColorStop(0.55, '#b4b4c8');
-    g.addColorStop(1, '#8a8aa6');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < (w * h) / 40; i++) {
-      ctx.fillStyle = Math.random() < 0.5 ? `rgba(255,255,255,${rand(0.1, 0.4)})` : `rgba(60,40,90,${rand(0.05, 0.2)})`;
-      ctx.fillRect(rand(0, w), rand(0, h), 1.6, 1.6);
+    const resultEl = document.getElementById('sc-result')!;
+    const labelEl = document.getElementById('sc-label')!;
+    const tallyEl = document.getElementById('tally')!;
+    const tally = { tickets: 0, wins: 0, balance: 0 };
+    function renderTally() {
+      const b = tally.balance;
+      tallyEl.innerHTML = `Esta sesión: <b>${tally.tickets}</b> boletos · <b>${tally.wins}</b> premiados · balance <b class="${b >= 0 ? 'pos' : 'neg'}">${b >= 0 ? '+' : '−'}${fmt(Math.abs(b))} 🪙</b>`;
     }
-    ctx.save();
-    ctx.translate(w / 2, h / 2);
-    ctx.rotate(-0.22);
-    ctx.fillStyle = 'rgba(80,50,120,.22)';
-    ctx.font = '18px Bungee, sans-serif';
-    ctx.textAlign = 'center';
-    let row = 0;
-    for (let y = -h; y < h; y += 42, row++) for (let x = -w; x < w; x += 180) ctx.fillText('RASCA 🪙', x + (row % 2 ? 90 : 0), y);
-    ctx.restore();
-    ctx.fillStyle = '#4a1f78';
-    ctx.font = `${Math.min(46, w / 9)}px Bungee, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('¡RASCA AQUÍ!', w / 2, h / 2);
-    canvas.classList.remove('gone');
-  }
 
-  function pos(e: PointerEvent) {
-    const r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  }
+    let syms: Sym[] = [];
+    let title: Title | null = null;
+    let titleP: Promise<Title | null> = Promise.resolve(null);
+    let active = false;
+    let last: { x: number; y: number } | null = null;
+    let moves = 0;
+    let lastSound = 0;
+    let coverW = 0;
 
-  function scratch(p: { x: number; y: number }) {
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.lineWidth = 48;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(last?.x ?? p.x, last?.y ?? p.y);
-    ctx.lineTo(p.x, p.y + 0.01);
-    ctx.stroke();
-    last = p;
-    const now = performance.now();
-    if (now - lastSound > 55) {
-      sfx.scratch();
-      lastSound = now;
-      if (Math.random() < 0.5) dust(p);
+    function drawCover() {
+      coverW = body.clientWidth;
+      const r = body.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = r.width * dpr;
+      canvas.height = r.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const w = r.width;
+      const h = r.height;
+      ctx.globalCompositeOperation = 'source-over';
+      const g = ctx.createLinearGradient(0, 0, w, h);
+      g.addColorStop(0, '#9c9cb4');
+      g.addColorStop(0.35, '#e9e9f3');
+      g.addColorStop(0.55, '#b4b4c8');
+      g.addColorStop(1, '#8a8aa6');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < (w * h) / 40; i++) {
+        ctx.fillStyle = Math.random() < 0.5 ? `rgba(255,255,255,${rand(0.1, 0.4)})` : `rgba(60,40,90,${rand(0.05, 0.2)})`;
+        ctx.fillRect(rand(0, w), rand(0, h), 1.6, 1.6);
+      }
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(-0.22);
+      ctx.fillStyle = 'rgba(80,50,120,.22)';
+      ctx.font = '18px Bungee, sans-serif';
+      ctx.textAlign = 'center';
+      let row = 0;
+      for (let y = -h; y < h; y += 42, row++) for (let x = -w; x < w; x += 180) ctx.fillText('RASCA 🪙', x + (row % 2 ? 90 : 0), y);
+      ctx.restore();
+      ctx.fillStyle = '#4a1f78';
+      ctx.font = `${Math.min(46, w / 9)}px Bungee, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('¡RASCA AQUÍ!', w / 2, h / 2);
+      canvas.classList.remove('gone');
     }
-    if (++moves % 12 === 0 && cleared() > 0.5) finish();
-  }
 
-  function dust(p: { x: number; y: number }) {
-    const r = canvas.getBoundingClientRect();
-    for (let i = 0; i < 3; i++) {
-      const d = document.createElement('i');
-      d.className = 'dust';
-      d.style.left = `${r.left + p.x + rand(-10, 10)}px`;
-      d.style.top = `${r.top + p.y}px`;
-      d.style.setProperty('--dx', `${rand(-30, 30)}px`);
-      d.addEventListener('animationend', () => d.remove());
-      document.getElementById('fx-layer')!.appendChild(d);
+    function pos(e: PointerEvent) {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
     }
-  }
 
-  function cleared() {
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    let clear = 0;
-    let total = 0;
-    for (let i = 3; i < data.length; i += 4 * 32) {
-      total++;
-      if (data[i] === 0) clear++;
+    function scratch(p: { x: number; y: number }) {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.lineWidth = 48;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(last?.x ?? p.x, last?.y ?? p.y);
+      ctx.lineTo(p.x, p.y + 0.01);
+      ctx.stroke();
+      last = p;
+      const now = performance.now();
+      if (now - lastSound > 55) {
+        sfx.scratch();
+        lastSound = now;
+        if (Math.random() < 0.5) dust(p);
+      }
+      if (++moves % 12 === 0 && cleared() > 0.5) finish();
     }
-    return clear / total;
-  }
 
-  canvas.addEventListener('pointerdown', (e) => {
-    if (!active) return;
-    canvas.setPointerCapture(e.pointerId);
-    last = null;
-    scratch(pos(e));
-  });
-  canvas.addEventListener('pointermove', (e) => {
-    if (!active || !canvas.hasPointerCapture(e.pointerId)) return;
-    scratch(pos(e));
-  });
-  canvas.addEventListener('pointerup', () => (last = null));
+    function dust(p: { x: number; y: number }) {
+      const r = canvas.getBoundingClientRect();
+      for (let i = 0; i < 3; i++) {
+        const d = document.createElement('i');
+        d.className = 'dust';
+        d.style.left = `${r.left + p.x + rand(-10, 10)}px`;
+        d.style.top = `${r.top + p.y}px`;
+        d.style.setProperty('--dx', `${rand(-30, 30)}px`);
+        d.addEventListener('animationend', () => d.remove());
+        document.getElementById('fx-layer')!.appendChild(d);
+      }
+    }
 
-  async function newTicket() {
-    if (active) return;
-    if (!spend(COST)) return;
-    stat('scratches');
-    buy.disabled = true;
-    seeTitle.hidden = true;
-    card.classList.remove('idle', 'won', 'lost', 'deal');
-    void card.offsetWidth;
-    card.classList.add('deal');
-    sfx.whoosh();
-    document.getElementById('idle-msg')!.hidden = true;
-    document.getElementById('serial')!.textContent = String(randInt(100000, 999999));
-    symEls.forEach((el) => el.classList.remove('hit'));
-    syms = deal();
-    syms.forEach((s, i) => (symEls[i].textContent = s.e));
-    drawCover();
-    title = null;
-    resultEl.hidden = true;
-    resultEl.className = 'sc-result';
-    labelEl.textContent = '¿TÍTULO PREMIADO?';
-    document.getElementById('sc-title')!.textContent = 'Imprimiendo…';
-    (document.getElementById('sc-poster') as HTMLImageElement).src = img(null);
-    document.getElementById('sc-rarity')!.textContent = '';
-    active = true;
-    revealAll.disabled = false;
-    titleP = luckyPick(pickType(), { minVote: 6, minVotes: 200 }, 30).catch(() => null);
-    title = await titleP;
-    if (title) {
-      const r = rarityOf(title);
-      document.getElementById('sc-title')!.textContent = title.title;
-      (document.getElementById('sc-poster') as HTMLImageElement).src = img(title.poster, 'w185');
-      const badge = document.getElementById('sc-rarity')!;
-      badge.textContent = `${RARITY[r].emoji} ${RARITY[r].label} · ⭐ ${title.vote.toFixed(1)}`;
-      document.getElementById('sc-prize')!.className = `sc-prize r-${r}`;
-    } else document.getElementById('sc-title')!.textContent = 'Sin señal de TMDB 📡';
-  }
+    function cleared() {
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let clear = 0;
+      let total = 0;
+      for (let i = 3; i < data.length; i += 4 * 32) {
+        total++;
+        if (data[i] === 0) clear++;
+      }
+      return clear / total;
+    }
 
-  async function finish() {
-    if (!active) return;
-    active = false;
-    revealAll.disabled = true;
-    canvas.classList.add('gone');
-    sfx.reveal();
-    const win = syms[0] === syms[1] && syms[1] === syms[2];
-    tally.tickets++;
-    tally.balance -= COST;
-    if (win) {
-      const amount = COST * syms[0].mult;
-      tally.wins++;
-      tally.balance += amount;
-      symEls.forEach((el) => el.classList.add('hit'));
-      card.classList.add('won');
-      earn(amount);
-      resultEl.className = 'sc-result win';
-      resultEl.innerHTML = `<b>🏆 ¡PREMIO! ${syms[0].e}×3 · x${syms[0].mult}</b><span>+${fmt(amount)} 🪙</span>`;
-      resultEl.hidden = false;
-      // Premio completo: las fichas y además el título va al botín, con un arte sorteado (algo más de suerte)
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!active) return;
+      canvas.setPointerCapture(e.pointerId);
+      last = null;
+      scratch(pos(e));
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!active || !canvas.hasPointerCapture(e.pointerId)) return;
+      scratch(pos(e));
+    });
+    canvas.addEventListener('pointerup', () => (last = null));
+
+    async function newTicket() {
+      if (active) return;
+      if (!spend(COST)) return;
+      stat('scratches');
+      buy.disabled = true;
+      seeTitle.hidden = true;
+      card.classList.remove('idle', 'won', 'lost', 'deal');
+      void card.offsetWidth;
+      card.classList.add('deal');
+      sfx.whoosh();
+      document.getElementById('idle-msg')!.hidden = true;
+      document.getElementById('serial')!.textContent = String(randInt(100000, 999999));
+      symEls.forEach((el) => el.classList.remove('hit'));
+      syms = deal();
+      syms.forEach((s, i) => (symEls[i].textContent = s.e));
+      drawCover();
+      title = null;
+      resultEl.hidden = true;
+      resultEl.className = 'sc-result';
+      labelEl.textContent = '¿TÍTULO PREMIADO?';
+      document.getElementById('sc-title')!.textContent = 'Imprimiendo…';
+      (document.getElementById('sc-poster') as HTMLImageElement).src = img(null);
+      document.getElementById('sc-rarity')!.textContent = '';
+      active = true;
+      revealAll.disabled = false;
+      titleP = luckyPick(pickType(), { minVote: 6, minVotes: 200 }, 30).catch(() => null);
+      title = await titleP;
+      if (title) {
+        const r = rarityOf(title);
+        document.getElementById('sc-title')!.textContent = title.title;
+        (document.getElementById('sc-poster') as HTMLImageElement).src = img(title.poster, 'w185');
+        const badge = document.getElementById('sc-rarity')!;
+        badge.textContent = `${RARITY[r].emoji} ${RARITY[r].label} · ⭐ ${title.vote.toFixed(1)}`;
+        document.getElementById('sc-prize')!.className = `sc-prize r-${r}`;
+      } else document.getElementById('sc-title')!.textContent = 'Sin señal de TMDB 📡';
+    }
+
+    async function finish() {
+      if (!active) return;
+      active = false;
+      revealAll.disabled = true;
+      canvas.classList.add('gone');
+      sfx.reveal();
+      const win = syms[0] === syms[1] && syms[1] === syms[2];
+      tally.tickets++;
+      tally.balance -= COST;
+      if (win) {
+        const amount = COST * syms[0].mult;
+        tally.wins++;
+        tally.balance += amount;
+        symEls.forEach((el) => el.classList.add('hit'));
+        card.classList.add('won');
+        earn(amount);
+        resultEl.className = 'sc-result win';
+        resultEl.innerHTML = `<b>🏆 ¡PREMIO! ${syms[0].e}×3 · x${syms[0].mult}</b><span>+${fmt(amount)} 🪙</span>`;
+        resultEl.hidden = false;
+        // Premio completo: las fichas y además el título va al botín, con un arte sorteado (algo más de suerte)
+        const t = title ?? (await titleP);
+        if (t) {
+          const had = inBotin(t.key);
+          const arte = rollArte(1.5);
+          const xp = collect(t, arte);
+          const arteTxt = isSpecial(arte) && !had ? ` · ARTE ${ARTES[arte].label.toUpperCase()} ${ARTES[arte].emoji}` : '';
+          labelEl.textContent = had ? '🏆 PREMIADO · YA LA TENÍAS: +1 COPIA PARA EL TALLER' : `🏆 PREMIADO · EN TU BOTÍN (+${xp} XP)${arteTxt}`;
+        }
+        const big = syms[0].mult >= 10;
+        if (big) {
+          sfx.jackpot();
+          fx.fireworks(2500);
+          fx.coinRain(70);
+          fx.shake('lg');
+          fx.banner(`${syms[0].e} ${syms[0].e} ${syms[0].e}`, `+${fmt(amount)} fichas`);
+        } else {
+          sfx.win();
+          sfx.coins(5);
+          fx.burst();
+          fx.coinRain(20);
+        }
+      } else {
+        card.classList.add('lost');
+        const pair = syms[0] === syms[1] || syms[1] === syms[2] || syms[0] === syms[2];
+        resultEl.className = 'sc-result lose';
+        resultEl.innerHTML = `<b>${pair ? '😩 ¡Dos iguales! Por un pelo' : '🎟️ Sin premio'}</b><span>−${COST} 🪙</span>`;
+        resultEl.hidden = false;
+        labelEl.textContent = '🎟️ TÍTULO DE CONSOLACIÓN';
+        sfx.error();
+      }
+      renderTally();
+      // Si se rascó antes de que llegara el título, se espera para no mezclar boletos
       const t = title ?? (await titleP);
       if (t) {
-        const had = inBotin(t.key);
-        const arte = rollArte(1.5);
-        const xp = collect(t, arte);
-        const arteTxt = isSpecial(arte) && !had ? ` · ARTE ${ARTES[arte].label.toUpperCase()} ${ARTES[arte].emoji}` : '';
-        labelEl.textContent = had ? '🏆 PREMIADO · YA LA TENÍAS: +1 COPIA PARA EL TALLER' : `🏆 PREMIADO · EN TU BOTÍN (+${xp} XP)${arteTxt}`;
+        const r = rarityOf(t);
+        setTimeout(() => fx.rarityBurst(r), win ? 900 : 200);
+        seeTitle.hidden = false;
       }
-      const big = syms[0].mult >= 10;
-      if (big) {
-        sfx.jackpot();
-        fx.fireworks(2500);
-        fx.coinRain(70);
-        fx.shake('lg');
-        fx.banner(`${syms[0].e} ${syms[0].e} ${syms[0].e}`, `+${fmt(amount)} fichas`);
-      } else {
-        sfx.win();
-        sfx.coins(5);
-        fx.burst();
-        fx.coinRain(20);
-      }
-    } else {
-      card.classList.add('lost');
-      const pair = syms[0] === syms[1] || syms[1] === syms[2] || syms[0] === syms[2];
-      resultEl.className = 'sc-result lose';
-      resultEl.innerHTML = `<b>${pair ? '😩 ¡Dos iguales! Por un pelo' : '🎟️ Sin premio'}</b><span>−${COST} 🪙</span>`;
-      resultEl.hidden = false;
-      labelEl.textContent = '🎟️ TÍTULO DE CONSOLACIÓN';
-      sfx.error();
+      buy.disabled = false;
     }
-    renderTally();
-    // Si se rascó antes de que llegara el título, se espera para no mezclar boletos
-    const t = title ?? (await titleP);
-    if (t) {
-      const r = rarityOf(t);
-      setTimeout(() => fx.rarityBurst(r), win ? 900 : 200);
-      seeTitle.hidden = false;
-    }
-    buy.disabled = false;
-  }
 
-  buy.addEventListener('click', newTicket);
-  revealAll.addEventListener('click', finish);
-  seeTitle.addEventListener('click', () => title && showTitle(title, { headline: card.classList.contains('won') ? '🏆 Título premiado de tu boleto' : '🎟️ Título de consolación', prize: true }));
-  // Solo si cambia el ancho: en móvil, al ocultarse la barra de direcciones cambia el alto y
-  // redibujar la capa borraba lo que ya habías rascado
-  window.addEventListener('resize', () => active && body.clientWidth !== coverW && drawCover());
+    buy.addEventListener('click', newTicket);
+    revealAll.addEventListener('click', finish);
+    seeTitle.addEventListener('click', () => title && showTitle(title, { headline: card.classList.contains('won') ? '🏆 Título premiado de tu boleto' : '🎟️ Título de consolación', prize: true }));
+    // Solo si cambia el ancho: en móvil, al ocultarse la barra de direcciones cambia el alto y
+    // redibujar la capa borraba lo que ya habías rascado
+    page.on(window, 'resize', () => active && body.clientWidth !== coverW && drawCover());
+  });
 </script>

@@ -1,6 +1,6 @@
 // Service worker de Cine Casino: app instalable y uso sin conexión.
 // Sube VERSION al cambiar este archivo para invalidar las cachés antiguas.
-const VERSION = 'v6';
+const VERSION = 'v7';
 const SHELL = `shell-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const IMAGES = 'tmdb-img-v1';
@@ -82,6 +82,7 @@ self.addEventListener('fetch', (e) => {
 
   // Recursos con hash (JS, CSS, fuentes) e iconos: caché primero
   if (['_astro/', 'icons/', 'brand/'].some((p) => url.pathname.startsWith(at(p)))) return e.respondWith(cacheFirst(req, ASSETS));
-  // Páginas: red primero, copia guardada o página offline si falla
-  if (req.mode === 'navigate') return e.respondWith(networkFirst(req, SHELL, at('offline/')));
+  // Páginas: red primero, copia guardada o página offline si falla. El router de Astro pide el HTML con
+  // fetch() (no es una "navegación"), así que también se reconoce por la cabecera Accept.
+  if (req.mode === 'navigate' || (req.headers.get('accept') ?? '').includes('text/html')) return e.respondWith(networkFirst(req, SHELL, at('offline/')));
 });

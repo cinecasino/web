@@ -42,13 +42,17 @@ segs[segs.length - 1].color = '#5b1a8f';
 
 <script>
   import { initWheel } from '../lib/wheel';
+  import { onPage } from '../lib/page';
 
-  initWheel({
-    cost: 30,
-    jackpotCoins: 400,
-    jackpot: { minVote: 8, minVotes: 1000 },
-    spinLabel: '🎡 ¡GIRAR!',
-    jackpotHeadline: '💎 JACKPOT de la ruleta',
-    genreHeadline: (seg) => `🎡 La ruleta dice: ${seg.emoji} ${seg.name}`,
+  // (la Ruleta del Terror también tiene #wheel: esta es la que no es de temporada)
+  onPage('section.wheel-page:not([data-event])', () => {
+    initWheel({
+      cost: 30,
+      jackpotCoins: 400,
+      jackpot: { minVote: 8, minVotes: 1000 },
+      spinLabel: '🎡 ¡GIRAR!',
+      jackpotHeadline: '💎 JACKPOT de la ruleta',
+      genreHeadline: (seg) => `🎡 La ruleta dice: ${seg.emoji} ${seg.name}`,
+    });
   });
 </script>

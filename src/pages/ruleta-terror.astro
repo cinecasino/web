@@ -58,16 +58,19 @@ for (const s of segs) if (s.kind === 'genre') s.color = g++ % 2 ? '#1b0b24' : '#
 <script>
   import { initWheel } from '../lib/wheel';
   import { isEventActive } from '../lib/events';
+  import { onPage } from '../lib/page';
 
-  if (isEventActive('halloween')) {
-    document.getElementById('closed')!.hidden = true;
-    initWheel({
-      cost: 30,
-      jackpotCoins: 666,
-      jackpot: { minVote: 7.3, minVotes: 800, movie: [27] },
-      spinLabel: '🎃 ¡GIRAR!',
-      jackpotHeadline: '🧛 JACKPOT de la cripta',
-      genreHeadline: (seg) => `🎃 La ruleta del terror dice: ${seg.emoji} ${seg.name}`,
-    });
-  }
+  onPage('section.wheel-page[data-event="halloween"]', () => {
+    if (isEventActive('halloween')) {
+      document.getElementById('closed')!.hidden = true;
+      initWheel({
+        cost: 30,
+        jackpotCoins: 666,
+        jackpot: { minVote: 7.3, minVotes: 800, movie: [27] },
+        spinLabel: '🎃 ¡GIRAR!',
+        jackpotHeadline: '🧛 JACKPOT de la cripta',
+        genreHeadline: (seg) => `🎃 La ruleta del terror dice: ${seg.emoji} ${seg.name}`,
+      });
+    }
+  });
 </script>

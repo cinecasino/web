@@ -167,15 +167,20 @@ Navegador ──► GitHub Pages (HTML, CSS y JS estáticos)
 ```
 src/
 ├─ site.ts               identidad del sitio y u() para rutas con prefijo
-├─ layouts/Casino.astro  layout común (variantes "game" y "page")
-├─ pages/                juegos, landing, legales, 404 y manifest (los dos modos)
+├─ layouts/Casino.astro  layout común: variante "game" (con router de Astro y HUD) y "page"
+├─ components/           piezas compartidas (la rueda de las ruletas)
+├─ pages/                juegos, landing, legales, 404, manifest, robots y sitemap (los dos modos)
 ├─ server-pages/         solo modo server: /cuenta, /admin y /api/*
 ├─ server/               solo modo server: base de datos, autenticación, HTTP
 ├─ middleware.ts         solo modo server: sesión, protección de /admin y CSRF
-├─ lib/                  código del navegador: store, juegos, efectos, sonido, PWA, cookies
-└─ styles/global.css
+├─ lib/                  código del navegador: partida, juegos, rarezas, artes, misiones, efectos, PWA…
+│                        (los *.test.ts al lado de lo que prueban)
+└─ styles/               global.css y artes.css
+worker/                  proxy de TMDB en Cloudflare Workers
 public/                  iconos, capturas para el instalador y service worker
 ```
+
+**Páginas del casino y el router.** Las páginas con `variant="game"` navegan sin recargar (`<ClientRouter />`), y su `<script>` solo se ejecuta la primera vez. Por eso el código de cada página va dentro de `onPage(selector, (page) => { … })` ([`src/lib/page.ts`](src/lib/page.ts)): se ejecuta en cada visita, y los listeners de `window`/`document` o los intervalos se registran con `page.on` y `page.every` para que se quiten solos al salir.
 
 ## Modo server (opcional)
 

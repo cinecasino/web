@@ -85,251 +85,254 @@ import { ARTE_IDS, ARTES } from '../lib/arts';
   import * as fx from '../lib/fx';
   import { esc, fmt, pick, sleep } from '../lib/util';
   import { u } from '../site';
+  import { onPage } from '../lib/page';
 
-  const filters = { status: 'all', type: 'all', rarity: 'all' };
+  onPage('#grid', (page) => {
+    const filters = { status: 'all', type: 'all', rarity: 'all' };
 
-  /** Categoría para filtros y resumen: rareza, o "upcoming"/"unrated" si aún no tiene nota fiable. */
-  const cat = (b: Saved): string => (statusOf(b) === 'rated' ? b.rarity : statusOf(b));
-  const isUpcoming = (b: Saved) => statusOf(b) === 'upcoming';
-  const sellosDe = (b: Saved) => sellosOf({ ...b, popularity: b.pop });
-  const arteDe = (b: Saved): Arte => b.arte ?? 'normal';
-  /** Orden de los artes para ordenar: los "solo por suerte" arriba del todo. */
-  const arteScore = (a: Arte) => ARTES[a].tier ?? 10 + ARTES[a].weight ** -1;
-  const grid = document.getElementById('grid')!;
-  const sortSel = document.getElementById('sort') as HTMLSelectElement;
-  const selloSel = document.getElementById('f-sello') as HTMLSelectElement;
-  const arteSel = document.getElementById('f-arte') as HTMLSelectElement;
+    /** Categoría para filtros y resumen: rareza, o "upcoming"/"unrated" si aún no tiene nota fiable. */
+    const cat = (b: Saved): string => (statusOf(b) === 'rated' ? b.rarity : statusOf(b));
+    const isUpcoming = (b: Saved) => statusOf(b) === 'upcoming';
+    const sellosDe = (b: Saved) => sellosOf({ ...b, popularity: b.pop });
+    const arteDe = (b: Saved): Arte => b.arte ?? 'normal';
+    /** Orden de los artes para ordenar: los "solo por suerte" arriba del todo. */
+    const arteScore = (a: Arte) => ARTES[a].tier ?? 10 + ARTES[a].weight ** -1;
+    const grid = document.getElementById('grid')!;
+    const sortSel = document.getElementById('sort') as HTMLSelectElement;
+    const selloSel = document.getElementById('f-sello') as HTMLSelectElement;
+    const arteSel = document.getElementById('f-arte') as HTMLSelectElement;
 
-  function visible(): Saved[] {
-    const s = getState();
-    const sello = selloSel.value;
-    const arte = arteSel.value;
-    let list = s.botin.filter(
-      (b) =>
-        (filters.status === 'all' || (filters.status === 'seen' ? b.seen : !b.seen)) &&
-        (filters.type === 'all' || b.type === filters.type) &&
-        (filters.rarity === 'all' || cat(b) === filters.rarity) &&
-        (sello === 'all' || sellosDe(b).includes(sello as never)) &&
-        (arte === 'all' || (arte === 'special' ? isSpecial(b.arte) : arteDe(b) === arte)),
-    );
-    const sort = sortSel.value;
-    if (sort === 'vote') list = [...list].sort((a, b) => b.vote - a.vote);
-    if (sort === 'rarity') list = [...list].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || b.vote - a.vote);
-    if (sort === 'arte') list = [...list].sort((a, b) => arteScore(arteDe(b)) - arteScore(arteDe(a)) || rarityRank(b.rarity) - rarityRank(a.rarity));
-    if (sort === 'title') list = [...list].sort((a, b) => a.title.localeCompare(b.title, 'es'));
-    return list;
-  }
+    function visible(): Saved[] {
+      const s = getState();
+      const sello = selloSel.value;
+      const arte = arteSel.value;
+      let list = s.botin.filter(
+        (b) =>
+          (filters.status === 'all' || (filters.status === 'seen' ? b.seen : !b.seen)) &&
+          (filters.type === 'all' || b.type === filters.type) &&
+          (filters.rarity === 'all' || cat(b) === filters.rarity) &&
+          (sello === 'all' || sellosDe(b).includes(sello as never)) &&
+          (arte === 'all' || (arte === 'special' ? isSpecial(b.arte) : arteDe(b) === arte)),
+      );
+      const sort = sortSel.value;
+      if (sort === 'vote') list = [...list].sort((a, b) => b.vote - a.vote);
+      if (sort === 'rarity') list = [...list].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || b.vote - a.vote);
+      if (sort === 'arte') list = [...list].sort((a, b) => arteScore(arteDe(b)) - arteScore(arteDe(a)) || rarityRank(b.rarity) - rarityRank(a.rarity));
+      if (sort === 'title') list = [...list].sort((a, b) => a.title.localeCompare(b.title, 'es'));
+      return list;
+    }
 
-  /** Huecos del álbum: cuántas cartas tienes de cada arte y una de muestra (la de mejor rareza). */
-  function renderAlbum() {
-    const s = getState();
-    const ev = isEventActive('halloween');
-    document.getElementById('album')!.innerHTML = ARTE_IDS.filter((a) => a !== 'normal')
-      .filter((a) => !ARTES[a].event || ev || s.botin.some((b) => b.arte === a))
-      .map((a) => {
-        const mine = s.botin.filter((b) => b.arte === a).sort((x, y) => rarityRank(y.rarity) - rarityRank(x.rarity));
-        const info = ARTES[a];
-        return `<button class="album-slot${mine.length ? ' got' : ''}" data-arte="${a}" title="${esc(info.desc)}">
-          ${mine.length ? savedTileHTML(mine[0], { open: false, size: 'w185', sellos: false }) : `<div class="album-empty">${info.emoji}</div>`}
-          <b>${info.emoji} ${info.label}</b>
-          <small>${mine.length ? `${mine.length} carta${mine.length > 1 ? 's' : ''}` : info.tier === null ? 'Solo por suerte' : 'Por descubrir'}</small>
-        </button>`;
-      })
-      .join('');
-  }
-
-  function render() {
-    const s = getState();
-    const total = s.botin.length;
-    const seen = s.botin.filter((b) => b.seen).length;
-    document.getElementById('summary')!.innerHTML = `
-      <div class="sum-big"><b>${total}</b><small>títulos</small></div>
-      <div class="sum-big"><b>${total - seen}</b><small>pendientes</small></div>
-      <div class="sum-big"><b>${seen}</b><small>vistas</small></div>
-      <div class="sum-rarities">${[
-        ...RARITIES.map((r) => ({ k: r as string, label: `${RARITY[r].emoji} ${RARITY[r].label}`, color: RARITY[r].color })),
-        { k: 'upcoming', label: `${STATUS.upcoming.emoji} ${STATUS.upcoming.label}`, color: '#29f0ff' },
-        { k: 'unrated', label: `${STATUS.unrated.emoji} ${STATUS.unrated.label}`, color: '#6e5a8f' },
-      ]
-        .map(({ k, label, color }) => {
-          const n = s.botin.filter((b) => cat(b) === k).length;
-          if (!n && (k === 'upcoming' || k === 'unrated')) return '';
-          return `<div class="sum-r" style="--rc:${color}"><span>${label}</span><i style="width:${total ? (n / total) * 100 : 0}%"></i><b>${n}</b></div>`;
+    /** Huecos del álbum: cuántas cartas tienes de cada arte y una de muestra (la de mejor rareza). */
+    function renderAlbum() {
+      const s = getState();
+      const ev = isEventActive('halloween');
+      document.getElementById('album')!.innerHTML = ARTE_IDS.filter((a) => a !== 'normal')
+        .filter((a) => !ARTES[a].event || ev || s.botin.some((b) => b.arte === a))
+        .map((a) => {
+          const mine = s.botin.filter((b) => b.arte === a).sort((x, y) => rarityRank(y.rarity) - rarityRank(x.rarity));
+          const info = ARTES[a];
+          return `<button class="album-slot${mine.length ? ' got' : ''}" data-arte="${a}" title="${esc(info.desc)}">
+            ${mine.length ? savedTileHTML(mine[0], { open: false, size: 'w185', sellos: false }) : `<div class="album-empty">${info.emoji}</div>`}
+            <b>${info.emoji} ${info.label}</b>
+            <small>${mine.length ? `${mine.length} carta${mine.length > 1 ? 's' : ''}` : info.tier === null ? 'Solo por suerte' : 'Por descubrir'}</small>
+          </button>`;
         })
-        .join('')}</div>`;
-
-    renderAlbum();
-    const list = visible();
-    if (!list.length) {
-      grid.innerHTML = total
-        ? '<p class="muted center">Nada con estos filtros.</p>'
-        : `<div class="empty"><div>🕳️</div><p>Tu botín está vacío.</p><a class="btn btn-gold" href="${u('tragaperras')}">🎰 Ve a ganar algo</a></div>`;
-      return;
+        .join('');
     }
-    grid.innerHTML = list
-      .map((b) => {
-        const canForge = upgradesFrom(b.arte).length > 0;
-        return savedTileHTML(b, {
-          cls: b.seen ? 'is-seen' : '',
-          extra: `${b.seen ? '<span class="seen-stamp">VISTA</span>' : ''}
-            ${b.copies ? `<span class="copies" title="Copias para el Taller">🧩${b.copies}</span>` : ''}
-            <div class="tile-actions" data-noopen>
-              ${b.seen || isUpcoming(b) ? '' : `<button class="mini" data-act="seen" data-key="${b.key}" title="Marcar como vista">👁️</button>`}
-              ${canForge ? `<button class="mini${(b.copies ?? 0) >= TALLER_COPIES ? ' ready' : ''}" data-act="forge" data-key="${b.key}" title="Taller: mejorar el arte">🛠️</button>` : ''}
-              <button class="mini" data-act="remove" data-key="${b.key}" title="Quitar del botín">🗑️</button>
-            </div>`,
-        });
-      })
-      .join('');
-  }
 
-  // ---------- Taller ----------
-  function openTaller(key: string) {
-    const b = savedOf(key);
-    if (!b) return;
-    const from = arteDe(b);
-    const options = upgradesFrom(from);
-    if (!options.length) return;
-    const copies = b.copies ?? 0;
-    const cost = TALLER_COINS[ARTES[options[0]].tier!];
-    const inner = openModal(`
-      <div class="taller">
-        <h2 class="neon-gold">🛠️ TALLER</h2>
-        <p class="muted">Mejora el arte de <b>${esc(b.title)}</b> un escalón: ${ARTES[from].emoji} ${ARTES[from].label} → ${options.length > 1 ? 'elige uno' : `${ARTES[options[0]].emoji} ${ARTES[options[0]].label}`}.</p>
-        <div class="taller-preview">${savedTileHTML(b, { open: false, sellos: false })}<span class="taller-arrow">➜</span><div class="taller-opts">
-          ${options
-            .map(
-              (a, i) =>
-                `<label class="taller-opt"><input type="radio" name="to" value="${a}" ${i === 0 ? 'checked' : ''}>${savedTileHTML({ ...b, arte: a }, { open: false, size: 'w185', sellos: false })}<span>${ARTES[a].emoji} ${ARTES[a].label}</span></label>`,
-            )
-            .join('')}
-        </div></div>
-        <div class="taller-pay">
-          <button class="btn btn-green" data-pay="copies" ${copies >= TALLER_COPIES ? '' : 'disabled'}>🧩 Usar ${TALLER_COPIES} copias <small>(tienes ${copies})</small></button>
-          <button class="btn btn-gold" data-pay="coins">🪙 Pagar ${fmt(cost)} fichas</button>
-        </div>
-        <p class="muted small">Las copias salen cuando te toca un título que ya tenías. Glitch, Lenticular, Firmada y Billete dorado no se fabrican: solo salen por suerte.</p>
-      </div>`);
-    inner.querySelector('.taller-pay')!.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-pay]');
+    function render() {
+      const s = getState();
+      const total = s.botin.length;
+      const seen = s.botin.filter((b) => b.seen).length;
+      document.getElementById('summary')!.innerHTML = `
+        <div class="sum-big"><b>${total}</b><small>títulos</small></div>
+        <div class="sum-big"><b>${total - seen}</b><small>pendientes</small></div>
+        <div class="sum-big"><b>${seen}</b><small>vistas</small></div>
+        <div class="sum-rarities">${[
+          ...RARITIES.map((r) => ({ k: r as string, label: `${RARITY[r].emoji} ${RARITY[r].label}`, color: RARITY[r].color })),
+          { k: 'upcoming', label: `${STATUS.upcoming.emoji} ${STATUS.upcoming.label}`, color: '#29f0ff' },
+          { k: 'unrated', label: `${STATUS.unrated.emoji} ${STATUS.unrated.label}`, color: '#6e5a8f' },
+        ]
+          .map(({ k, label, color }) => {
+            const n = s.botin.filter((b) => cat(b) === k).length;
+            if (!n && (k === 'upcoming' || k === 'unrated')) return '';
+            return `<div class="sum-r" style="--rc:${color}"><span>${label}</span><i style="width:${total ? (n / total) * 100 : 0}%"></i><b>${n}</b></div>`;
+          })
+          .join('')}</div>`;
+
+      renderAlbum();
+      const list = visible();
+      if (!list.length) {
+        grid.innerHTML = total
+          ? '<p class="muted center">Nada con estos filtros.</p>'
+          : `<div class="empty"><div>🕳️</div><p>Tu botín está vacío.</p><a class="btn btn-gold" href="${u('tragaperras')}">🎰 Ve a ganar algo</a></div>`;
+        return;
+      }
+      grid.innerHTML = list
+        .map((b) => {
+          const canForge = upgradesFrom(b.arte).length > 0;
+          return savedTileHTML(b, {
+            cls: b.seen ? 'is-seen' : '',
+            extra: `${b.seen ? '<span class="seen-stamp">VISTA</span>' : ''}
+              ${b.copies ? `<span class="copies" title="Copias para el Taller">🧩${b.copies}</span>` : ''}
+              <div class="tile-actions" data-noopen>
+                ${b.seen || isUpcoming(b) ? '' : `<button class="mini" data-act="seen" data-key="${b.key}" title="Marcar como vista">👁️</button>`}
+                ${canForge ? `<button class="mini${(b.copies ?? 0) >= TALLER_COPIES ? ' ready' : ''}" data-act="forge" data-key="${b.key}" title="Taller: mejorar el arte">🛠️</button>` : ''}
+                <button class="mini" data-act="remove" data-key="${b.key}" title="Quitar del botín">🗑️</button>
+              </div>`,
+          });
+        })
+        .join('');
+    }
+
+    // ---------- Taller ----------
+    function openTaller(key: string) {
+      const b = savedOf(key);
+      if (!b) return;
+      const from = arteDe(b);
+      const options = upgradesFrom(from);
+      if (!options.length) return;
+      const copies = b.copies ?? 0;
+      const cost = TALLER_COINS[ARTES[options[0]].tier!];
+      const inner = openModal(`
+        <div class="taller">
+          <h2 class="neon-gold">🛠️ TALLER</h2>
+          <p class="muted">Mejora el arte de <b>${esc(b.title)}</b> un escalón: ${ARTES[from].emoji} ${ARTES[from].label} → ${options.length > 1 ? 'elige uno' : `${ARTES[options[0]].emoji} ${ARTES[options[0]].label}`}.</p>
+          <div class="taller-preview">${savedTileHTML(b, { open: false, sellos: false })}<span class="taller-arrow">➜</span><div class="taller-opts">
+            ${options
+              .map(
+                (a, i) =>
+                  `<label class="taller-opt"><input type="radio" name="to" value="${a}" ${i === 0 ? 'checked' : ''}>${savedTileHTML({ ...b, arte: a }, { open: false, size: 'w185', sellos: false })}<span>${ARTES[a].emoji} ${ARTES[a].label}</span></label>`,
+              )
+              .join('')}
+          </div></div>
+          <div class="taller-pay">
+            <button class="btn btn-green" data-pay="copies" ${copies >= TALLER_COPIES ? '' : 'disabled'}>🧩 Usar ${TALLER_COPIES} copias <small>(tienes ${copies})</small></button>
+            <button class="btn btn-gold" data-pay="coins">🪙 Pagar ${fmt(cost)} fichas</button>
+          </div>
+          <p class="muted small">Las copias salen cuando te toca un título que ya tenías. Glitch, Lenticular, Firmada y Billete dorado no se fabrican: solo salen por suerte.</p>
+        </div>`);
+      inner.querySelector('.taller-pay')!.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-pay]');
+        if (!btn) return;
+        const to = (inner.querySelector('input[name="to"]:checked') as HTMLInputElement).value as Arte;
+        if (!upgradeArte(key, to, btn.dataset.pay as 'copies' | 'coins')) return;
+        sfx.jackpot();
+        fx.rarityBurst(b.rarity);
+        fx.toast(`<b>${esc(b.title)}</b> ahora es ${ARTES[to].emoji} <b>${ARTES[to].label}</b>.`, { icon: '🛠️', color: 'var(--gold)' });
+        closeModal();
+        const now = savedOf(key);
+        if (now) showTitle(fromSaved(now), { headline: `🛠️ Recién salida del Taller: ${ARTES[to].label}` });
+      });
+    }
+
+    grid.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-act]');
       if (!btn) return;
-      const to = (inner.querySelector('input[name="to"]:checked') as HTMLInputElement).value as Arte;
-      if (!upgradeArte(key, to, btn.dataset.pay as 'copies' | 'coins')) return;
-      sfx.jackpot();
-      fx.rarityBurst(b.rarity);
-      fx.toast(`<b>${esc(b.title)}</b> ahora es ${ARTES[to].emoji} <b>${ARTES[to].label}</b>.`, { icon: '🛠️', color: 'var(--gold)' });
-      closeModal();
-      const now = savedOf(key);
-      if (now) showTitle(fromSaved(now), { headline: `🛠️ Recién salida del Taller: ${ARTES[to].label}` });
+      const item = getState().botin.find((b) => b.key === btn.dataset.key);
+      if (!item) return;
+      if (btn.dataset.act === 'seen') {
+        const coins = markSeen(item);
+        if (!coins) return;
+        sfx.coins(5);
+        fx.floatFrom(btn, `+${coins} 🪙`, 'pos');
+        fx.coinRain(12);
+      } else if (btn.dataset.act === 'forge') {
+        openTaller(item.key);
+      } else if (confirm(`¿Quitar "${item.title}" del botín?`)) {
+        removeFromBotin(item.key);
+        sfx.lose();
+      }
     });
-  }
 
-  grid.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-act]');
-    if (!btn) return;
-    const item = getState().botin.find((b) => b.key === btn.dataset.key);
-    if (!item) return;
-    if (btn.dataset.act === 'seen') {
-      const coins = markSeen(item);
-      if (!coins) return;
-      sfx.coins(5);
-      fx.floatFrom(btn, `+${coins} 🪙`, 'pos');
-      fx.coinRain(12);
-    } else if (btn.dataset.act === 'forge') {
-      openTaller(item.key);
-    } else if (confirm(`¿Quitar "${item.title}" del botín?`)) {
-      removeFromBotin(item.key);
-      sfx.lose();
-    }
-  });
+    // Pulsar un hueco del álbum filtra la rejilla por ese arte
+    document.getElementById('album')!.addEventListener('click', (e) => {
+      const slot = (e.target as HTMLElement).closest<HTMLElement>('[data-arte]');
+      if (!slot) return;
+      arteSel.value = slot.dataset.arte!;
+      render();
+      grid.scrollIntoView({ behavior: fx.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+    });
 
-  // Pulsar un hueco del álbum filtra la rejilla por ese arte
-  document.getElementById('album')!.addEventListener('click', (e) => {
-    const slot = (e.target as HTMLElement).closest<HTMLElement>('[data-arte]');
-    if (!slot) return;
-    arteSel.value = slot.dataset.arte!;
+    document.getElementById('filters')!.addEventListener('click', (e) => {
+      const chip = (e.target as HTMLElement).closest<HTMLButtonElement>('.chip');
+      if (!chip) return;
+      const group = chip.parentElement!.dataset.group as keyof typeof filters;
+      filters[group] = chip.dataset.v!;
+      chip.parentElement!.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', c === chip));
+      render();
+    });
+    [sortSel, selloSel, arteSel].forEach((s) => s.addEventListener('change', render));
+    page.on(window, 'casino:change', render);
+
+    // ¿Qué veo hoy? Tragaperras de un solo rodillo con tus pendientes
+    const picker = document.getElementById('picker')!;
+    const pImg = document.getElementById('picker-img') as HTMLImageElement;
+    const pTitle = document.getElementById('picker-title')!;
+    const pFrame = document.getElementById('picker-frame')!;
+    document.getElementById('pick-tonight')!.addEventListener('click', async () => {
+      const pool = visible().filter((b) => !b.seen && !isUpcoming(b));
+      if (pool.length < 2) {
+        fx.toast(pool.length ? `Solo tienes uno pendiente ya estrenado: <b>${esc(pool[0].title)}</b>. ¡Decidido!` : 'No tienes pendientes estrenados con este filtro. ¡A jugar!', { icon: '🤷' });
+        return;
+      }
+      // Se sortea antes la secuencia completa (~20 carteles) y solo se precargan esos, no el botín entero
+      const seq: Saved[] = [];
+      for (let delay = 45, prev = pool[0]; delay < 420; delay *= 1.12) {
+        let next = pick(pool);
+        while (next === prev) next = pick(pool);
+        seq.push((prev = next));
+      }
+      seq.forEach((b) => (new Image().src = img(b.poster, 'w500')));
+      picker.hidden = false;
+      pFrame.classList.remove('landed');
+      pTitle.className = '';
+      let delay = 45;
+      let current = pool[0];
+      for (const next of seq) {
+        current = next;
+        pImg.src = img(current.poster, 'w500');
+        pTitle.textContent = current.title;
+        pFrame.className = `picker-frame r-${current.rarity}`;
+        sfx.tick();
+        await sleep(delay);
+        delay *= 1.12;
+      }
+      pFrame.classList.add('landed');
+      pTitle.className = 'landed';
+      sfx.jackpot();
+      fx.rarityBurst(current.rarity);
+      fx.burst({ particleCount: 160, spread: 110 });
+      await sleep(1600);
+      picker.hidden = true;
+      showTitle(fromSaved(current), { headline: '🍿 Esta noche toca…' });
+    });
+
+    document.getElementById('export')!.addEventListener('click', () => {
+      const blob = new Blob([exportData()], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `cine-casino-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+    document.getElementById('import')!.addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        importData(await file.text());
+        fx.toast('Partida importada. 🎉', { icon: '⬆' });
+      } catch (err) {
+        fx.toast(`No se pudo importar: ${esc(String((err as Error).message))}`, { icon: '⚠️', color: 'var(--red)' });
+      }
+    });
+    document.getElementById('reset')!.addEventListener('click', () => {
+      if (confirm('¿Seguro? Se borran fichas, nivel, botín y logros. No hay vuelta atrás.')) {
+        resetAll();
+        fx.toast('Partida reiniciada. 500 fichas nuevas. Que empiece el vicio.', { icon: '🔄' });
+      }
+    });
+
     render();
-    grid.scrollIntoView({ behavior: fx.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
   });
-
-  document.getElementById('filters')!.addEventListener('click', (e) => {
-    const chip = (e.target as HTMLElement).closest<HTMLButtonElement>('.chip');
-    if (!chip) return;
-    const group = chip.parentElement!.dataset.group as keyof typeof filters;
-    filters[group] = chip.dataset.v!;
-    chip.parentElement!.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', c === chip));
-    render();
-  });
-  [sortSel, selloSel, arteSel].forEach((s) => s.addEventListener('change', render));
-  window.addEventListener('casino:change', render);
-
-  // ¿Qué veo hoy? Tragaperras de un solo rodillo con tus pendientes
-  const picker = document.getElementById('picker')!;
-  const pImg = document.getElementById('picker-img') as HTMLImageElement;
-  const pTitle = document.getElementById('picker-title')!;
-  const pFrame = document.getElementById('picker-frame')!;
-  document.getElementById('pick-tonight')!.addEventListener('click', async () => {
-    const pool = visible().filter((b) => !b.seen && !isUpcoming(b));
-    if (pool.length < 2) {
-      fx.toast(pool.length ? `Solo tienes uno pendiente ya estrenado: <b>${esc(pool[0].title)}</b>. ¡Decidido!` : 'No tienes pendientes estrenados con este filtro. ¡A jugar!', { icon: '🤷' });
-      return;
-    }
-    // Se sortea antes la secuencia completa (~20 carteles) y solo se precargan esos, no el botín entero
-    const seq: Saved[] = [];
-    for (let delay = 45, prev = pool[0]; delay < 420; delay *= 1.12) {
-      let next = pick(pool);
-      while (next === prev) next = pick(pool);
-      seq.push((prev = next));
-    }
-    seq.forEach((b) => (new Image().src = img(b.poster, 'w500')));
-    picker.hidden = false;
-    pFrame.classList.remove('landed');
-    pTitle.className = '';
-    let delay = 45;
-    let current = pool[0];
-    for (const next of seq) {
-      current = next;
-      pImg.src = img(current.poster, 'w500');
-      pTitle.textContent = current.title;
-      pFrame.className = `picker-frame r-${current.rarity}`;
-      sfx.tick();
-      await sleep(delay);
-      delay *= 1.12;
-    }
-    pFrame.classList.add('landed');
-    pTitle.className = 'landed';
-    sfx.jackpot();
-    fx.rarityBurst(current.rarity);
-    fx.burst({ particleCount: 160, spread: 110 });
-    await sleep(1600);
-    picker.hidden = true;
-    showTitle(fromSaved(current), { headline: '🍿 Esta noche toca…' });
-  });
-
-  document.getElementById('export')!.addEventListener('click', () => {
-    const blob = new Blob([exportData()], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `cine-casino-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  });
-  document.getElementById('import')!.addEventListener('change', async (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-    try {
-      importData(await file.text());
-      fx.toast('Partida importada. 🎉', { icon: '⬆' });
-    } catch (err) {
-      fx.toast(`No se pudo importar: ${esc(String((err as Error).message))}`, { icon: '⚠️', color: 'var(--red)' });
-    }
-  });
-  document.getElementById('reset')!.addEventListener('click', () => {
-    if (confirm('¿Seguro? Se borran fichas, nivel, botín y logros. No hay vuelta atrás.')) {
-      resetAll();
-      fx.toast('Partida reiniciada. 500 fichas nuevas. Que empiece el vicio.', { icon: '🔄' });
-    }
-  });
-
-  render();
 </script>

@@ -8,7 +8,7 @@ let deferred: (Event & { prompt: () => Promise<void>; userChoice: Promise<{ outc
 export const isStandalone = () => matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-function refreshButtons() {
+export function refreshInstallButtons() {
   document.querySelectorAll<HTMLElement>('[data-install]').forEach((b) => {
     // Los de "siempre" (landing) se muestran con instrucciones aunque el navegador no ofrezca el aviso nativo
     b.hidden = isStandalone() || (!deferred && b.dataset.install !== 'always');
@@ -36,11 +36,11 @@ export function initPwa() {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferred = e as typeof deferred;
-    refreshButtons();
+    refreshInstallButtons();
   });
   window.addEventListener('appinstalled', () => {
     deferred = null;
-    refreshButtons();
+    refreshInstallButtons();
     fx.burst();
     fx.toast('¡Instalada! Ya tienes el casino en tu dispositivo. 📲', { icon: '🎰' });
   });
@@ -51,7 +51,7 @@ export function initPwa() {
     await deferred.prompt();
     await deferred.userChoice.catch(() => null);
     deferred = null;
-    refreshButtons();
+    refreshInstallButtons();
   });
-  refreshButtons();
+  refreshInstallButtons();
 }

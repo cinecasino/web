@@ -61,64 +61,67 @@ const games: { href: string; icon: string; name: string; desc: string; cost?: st
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
   import { fmt } from '../lib/util';
+  import { onPage } from '../lib/page';
 
-  // Inclinación 3D de las tarjetas de juego (solo con ratón y si no se ha pedido reducir el movimiento)
-  const tilt = matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches;
-  document.querySelectorAll<HTMLElement>('.game-card').forEach((card) => {
-    card.addEventListener('pointerenter', () => sfx.tick());
-    if (!tilt) return;
-    card.addEventListener('pointermove', (e) => {
-      const r = card.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width - 0.5;
-      const y = (e.clientY - r.top) / r.height - 0.5;
-      card.style.transform = `perspective(700px) rotateY(${x * 14}deg) rotateX(${-y * 14}deg) translateY(-6px)`;
-      card.style.setProperty('--mx', `${(x + 0.5) * 100}%`);
-      card.style.setProperty('--my', `${(y + 0.5) * 100}%`);
+  onPage('.games-grid', (page) => {
+    // Inclinación 3D de las tarjetas de juego (solo con ratón y si no se ha pedido reducir el movimiento)
+    const tilt = matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches;
+    document.querySelectorAll<HTMLElement>('.game-card').forEach((card) => {
+      card.addEventListener('pointerenter', () => sfx.tick());
+      if (!tilt) return;
+      card.addEventListener('pointermove', (e) => {
+        const r = card.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        card.style.transform = `perspective(700px) rotateY(${x * 14}deg) rotateX(${-y * 14}deg) translateY(-6px)`;
+        card.style.setProperty('--mx', `${(x + 0.5) * 100}%`);
+        card.style.setProperty('--my', `${(y + 0.5) * 100}%`);
+      });
+      card.addEventListener('pointerleave', () => (card.style.transform = ''));
     });
-    card.addEventListener('pointerleave', () => (card.style.transform = ''));
-  });
 
-  async function loadTrending() {
-    const track = document.getElementById('marquee-track')!;
-    try {
-      const list = await trending();
-      const html = list.map((t) => tileHTML(t)).join('');
-      // La segunda copia solo sirve para que el carrusel dé la vuelta sin saltos: se puede pulsar, pero no se lee ni se tabula
-      track.innerHTML = `${html}<div class="marquee-dup" aria-hidden="true">${html.replaceAll('tabindex="0"', 'tabindex="-1"')}</div>`;
-    } catch {
-      track.innerHTML = '<p class="muted">📡 No se pudieron cargar las tendencias de TMDB. Prueba a recargar en un rato.</p>';
+    async function loadTrending() {
+      const track = document.getElementById('marquee-track')!;
+      try {
+        const list = await trending();
+        const html = list.map((t) => tileHTML(t)).join('');
+        // La segunda copia solo sirve para que el carrusel dé la vuelta sin saltos: se puede pulsar, pero no se lee ni se tabula
+        track.innerHTML = `${html}<div class="marquee-dup" aria-hidden="true">${html.replaceAll('tabindex="0"', 'tabindex="-1"')}</div>`;
+      } catch {
+        track.innerHTML = '<p class="muted">📡 No se pudieron cargar las tendencias de TMDB. Prueba a recargar en un rato.</p>';
+      }
     }
-  }
-  loadTrending();
-  window.addEventListener('casino:change', () => {
+    loadTrending();
+    page.on(window, 'casino:change', () => {
+      renderPlayer();
+    });
+
+    const lucky = document.getElementById('lucky') as HTMLButtonElement;
+    lucky.addEventListener('click', async () => {
+      if (!spend(10)) return;
+      lucky.disabled = true;
+      sfx.whoosh();
+      fx.shake('sm');
+      try {
+        const t = await luckyPick(pickType(), { minVote: 6.8, minVotes: 300 }, 30);
+        if (t) await showTitle(t, { headline: '🍀 ¡La suerte ha hablado!', reveal: true, prize: true });
+      } finally {
+        lucky.disabled = false;
+      }
+    });
+
+    function renderPlayer() {
+      const s = getState();
+      const achs = availableAchievements(s);
+      const unlocked = achs.filter((a) => s.achievements[a.id]).length;
+      const counts = RARITIES.map((r) => `<span class="rc r-${r}">${RARITY[r].emoji} ${s.botin.filter((b) => b.rarity === r).length}</span>`).join('');
+      document.getElementById('player')!.innerHTML = `
+        <div><small>NIVEL</small><b>${s.level}</b></div>
+        <div><small>FICHAS</small><b>${fmt(s.coins)}</b></div>
+        <div><small>BOTÍN</small><b>${s.botin.length}</b><span class="rcs">${counts}</span></div>
+        <div><small>LOGROS</small><b>${unlocked}/${achs.length}</b></div>
+        <div><small>RACHA DIARIA</small><b>${s.daily.streak} 🔥</b></div>`;
+    }
     renderPlayer();
   });
-
-  const lucky = document.getElementById('lucky') as HTMLButtonElement;
-  lucky.addEventListener('click', async () => {
-    if (!spend(10)) return;
-    lucky.disabled = true;
-    sfx.whoosh();
-    fx.shake('sm');
-    try {
-      const t = await luckyPick(pickType(), { minVote: 6.8, minVotes: 300 }, 30);
-      if (t) await showTitle(t, { headline: '🍀 ¡La suerte ha hablado!', reveal: true, prize: true });
-    } finally {
-      lucky.disabled = false;
-    }
-  });
-
-  function renderPlayer() {
-    const s = getState();
-    const achs = availableAchievements(s);
-    const unlocked = achs.filter((a) => s.achievements[a.id]).length;
-    const counts = RARITIES.map((r) => `<span class="rc r-${r}">${RARITY[r].emoji} ${s.botin.filter((b) => b.rarity === r).length}</span>`).join('');
-    document.getElementById('player')!.innerHTML = `
-      <div><small>NIVEL</small><b>${s.level}</b></div>
-      <div><small>FICHAS</small><b>${fmt(s.coins)}</b></div>
-      <div><small>BOTÍN</small><b>${s.botin.length}</b><span class="rcs">${counts}</span></div>
-      <div><small>LOGROS</small><b>${unlocked}/${achs.length}</b></div>
-      <div><small>RACHA DIARIA</small><b>${s.daily.streak} 🔥</b></div>`;
-  }
-  renderPlayer();
 </script>

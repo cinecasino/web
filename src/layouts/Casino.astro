@@ -12,6 +12,7 @@ import '@fontsource/caveat/latin-400.css';
 import '../styles/global.css';
 import '../styles/artes.css';
 import { ACCOUNTS, issuesUrl, SITE, u } from '../site';
+import { ClientRouter } from 'astro:transitions';
 import { existsSync } from 'node:fs';
 
 // El logo oficial de TMDB hay que descargarlo a mano (ver README); si no está, solo se muestra el texto.
@@ -78,16 +79,21 @@ const nav: { href: string; label: string; icon: string; key: string; event?: str
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    {
+      /* Navegación sin recarga solo entre las páginas del casino: la cabecera con el HUD, el ticker y el sonido
+         siguen vivos de un juego a otro. Ir a la landing, los textos legales o la cuenta recarga la página. */
+      variant === 'game' && <ClientRouter />
+    }
   </head>
   <body class={`v-${variant}`}>
     <a class="skip-link" href="#main">Saltar al contenido</a>
-    <div class="bg-lights" aria-hidden="true"></div>
-    <div class="bg-floaters" id="floaters" aria-hidden="true"></div>
+    <div class="bg-lights" aria-hidden="true" transition:persist="bg-lights"></div>
+    <div class="bg-floaters" id="floaters" aria-hidden="true" transition:persist="floaters"></div>
 
     {
       variant === 'game' ? (
         <>
-          <header class="topbar">
+          <header class="topbar" transition:persist="hud">
             <a href={u('')} class="logo">
               <span class="logo-icon">🎰</span>
               <span class="neon-pink">{SITE.logo[0]}</span>
@@ -118,10 +124,11 @@ const nav: { href: string; label: string; icon: string; key: string; event?: str
               {ACCOUNTS && <span class="user-slot" data-user-slot />}
             </div>
           </header>
-          <nav class="nav" aria-label="Juegos">
+          <nav class="nav" aria-label="Juegos" transition:persist="nav">
             {nav.map((n) => (
               <a
                 href={n.href}
+                data-key={n.key}
                 class:list={[{ active: n.key === active }]}
                 aria-current={n.key === active ? 'page' : undefined}
                 data-event={n.event}
@@ -153,7 +160,7 @@ const nav: { href: string; label: string; icon: string; key: string; event?: str
 
     <div id="announce" class="announce" hidden></div>
 
-    <main id="main" tabindex="-1">
+    <main id="main" tabindex="-1" data-active={active}>
       <slot />
     </main>
 
@@ -178,7 +185,7 @@ const nav: { href: string; label: string; icon: string; key: string; event?: str
 
     {
       variant === 'game' && (
-        <footer class="ticker">
+        <footer class="ticker" transition:persist="ticker">
           <div class="ticker-track" id="ticker">
             <div class="ticker-run">🎰 Cargando lo más caliente de la semana…</div>
           </div>
@@ -186,9 +193,9 @@ const nav: { href: string; label: string; icon: string; key: string; event?: str
       )
     }
 
-    <dialog id="modal" class="modal"><div class="modal-inner"></div></dialog>
-    <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
-    <div id="fx-layer" class="fx-layer" aria-hidden="true"></div>
+    <dialog id="modal" class="modal" transition:persist="modal"><div class="modal-inner"></div></dialog>
+    <div id="toasts" class="toasts" role="status" aria-live="polite" transition:persist="toasts"></div>
+    <div id="fx-layer" class="fx-layer" aria-hidden="true" transition:persist="fx-layer"></div>
 
     <script>
       import '../lib/site';

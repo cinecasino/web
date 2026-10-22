@@ -60,218 +60,221 @@ import Casino from '../layouts/Casino.astro';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
   import { fmt, rand, sleep } from '../lib/util';
+  import { onPage } from '../lib/page';
 
-  const MIN_VOTE: Record<number, number> = { 50: 5.8, 100: 6.6, 250: 7.2 };
+  onPage('#machine', (page) => {
+    const MIN_VOTE: Record<number, number> = { 50: 5.8, 100: 6.6, 250: 7.2 };
 
-  const machine = document.getElementById('machine')!;
-  const reels = [...document.querySelectorAll<HTMLElement>('.reel')];
-  const msg = document.getElementById('slot-msg')!;
-  const spinBtn = document.getElementById('spin') as HTMLButtonElement;
-  const autoBox = document.getElementById('auto') as HTMLInputElement;
-  const lever = document.getElementById('lever')!;
-  const jpEl = document.getElementById('jp-val')!;
-  const history = document.getElementById('history')!;
+    const machine = document.getElementById('machine')!;
+    const reels = [...document.querySelectorAll<HTMLElement>('.reel')];
+    const msg = document.getElementById('slot-msg')!;
+    const spinBtn = document.getElementById('spin') as HTMLButtonElement;
+    const autoBox = document.getElementById('auto') as HTMLInputElement;
+    const lever = document.getElementById('lever')!;
+    const jpEl = document.getElementById('jp-val')!;
+    const history = document.getElementById('history')!;
 
-  fx.bulbs(machine, 14, 10);
+    fx.bulbs(machine, 14, 10);
 
-  let bet = 50;
-  let spinning = false;
-  const visible: Sym[][] = reels.map(() => [roll(), roll(), roll()]);
+    let bet = 50;
+    let spinning = false;
+    const visible: Sym[][] = reels.map(() => [roll(), roll(), roll()]);
 
-  const symHTML = (s: Sym) => `<div class="sym${s.key === 'wild' ? ' wild' : ''}"><span>${s.emoji}</span><small>${s.name}</small></div>`;
-  const rowH = () => reels[0].clientHeight / 3;
+    const symHTML = (s: Sym) => `<div class="sym${s.key === 'wild' ? ' wild' : ''}"><span>${s.emoji}</span><small>${s.name}</small></div>`;
+    const rowH = () => reels[0].clientHeight / 3;
 
-  function setStrip(i: number, list: Sym[]) {
-    const strip = reels[i].querySelector<HTMLElement>('.strip')!;
-    strip.style.transition = 'none';
-    strip.style.transform = 'translateY(0)';
-    strip.innerHTML = list.map(symHTML).join('');
-    return strip;
-  }
-  reels.forEach((_, i) => setStrip(i, visible[i]));
-
-  function spinReel(i: number, target: Sym, ms: number): Promise<void> {
-    const extra = Array.from({ length: 16 + i * 5 + Math.floor(ms / 110) }, roll);
-    const list = [...visible[i], ...extra, target, roll()];
-    const L = list.length;
-    const strip = setStrip(i, list);
-    void strip.offsetHeight;
-    strip.style.transition = `transform ${ms}ms cubic-bezier(.15,.85,.25,1.04)`;
-    strip.style.transform = `translateY(${-(L - 3) * rowH()}px)`;
-    reels[i].classList.add('spinning');
-    setTimeout(() => reels[i].classList.remove('spinning'), ms * 0.72);
-    return sleep(ms + 40).then(() => {
-      visible[i] = list.slice(L - 3);
-      setStrip(i, visible[i]);
-      reels[i].classList.remove('tension');
-      reels[i].classList.add('stopped');
-      setTimeout(() => reels[i].classList.remove('stopped'), 350);
-      sfx.thud();
-    });
-  }
-
-  function findTitle(r: Sym[], kind: Kind, b: number): Promise<Title | null> {
-    const type = pickType();
-    const ids = [...new Set(r.filter((s) => s.key !== 'wild').map((s) => s[type]!))];
-    let minVote = MIN_VOTE[b];
-    let minVotes = 150;
-    if (kind === 'jackpot') {
-      minVote += 0.6;
-      minVotes = 400;
+    function setStrip(i: number, list: Sym[]) {
+      const strip = reels[i].querySelector<HTMLElement>('.strip')!;
+      strip.style.transition = 'none';
+      strip.style.transform = 'translateY(0)';
+      strip.innerHTML = list.map(symHTML).join('');
+      return strip;
     }
-    if (kind === 'mega') {
-      minVote = 7.9;
-      minVotes = 1000;
-    }
-    return luckyPick(type, { genres: ids, minVote, minVotes }, kind === 'none' ? 25 : 12);
-  }
+    reels.forEach((_, i) => setStrip(i, visible[i]));
 
-  function setMsg(html: string, cls = '') {
-    msg.className = `slot-msg ${cls}`;
-    msg.innerHTML = html;
-  }
-
-  function addHistory(t: Title, b: number) {
-    if (history.querySelector('p')) history.innerHTML = '';
-    // Ganado: se puede guardar desde el historial aunque cierres la ficha. Apostar más sube el arte.
-    const arte = grantClaim(t, luckForBet(b));
-    history.insertAdjacentHTML('afterbegin', tileHTML(t, { size: 'w185', arte, sellos: false }));
-    while (history.children.length > 12) history.lastElementChild!.remove();
-  }
-
-  async function spin() {
-    if (spinning) return;
-    if (!spend(bet)) {
-      autoBox.checked = false;
-      return;
-    }
-    const b = bet;
-    spinning = true;
-    spinBtn.disabled = true;
-    stat('slots');
-    bumpJackpot(b * 0.25);
-    renderJackpot();
-    sfx.lever();
-    lever.classList.remove('pulled');
-    void lever.offsetWidth;
-    lever.classList.add('pulled');
-    machine.classList.remove('win', 'big-win');
-    reels.forEach((r) => r.classList.remove('winner'));
-    setMsg('🎲 Girando…', 'spinning');
-
-    const res = [roll(), roll(), roll()];
-    const outcome = evaluate(res);
-    const titleP = findTitle(res, outcome.kind, b).catch(() => null);
-
-    const ticker = setInterval(() => sfx.tick(), 70);
-    const base = 1300;
-    const tension = matches(res[0], res[1]);
-    const p0 = spinReel(0, res[0], base);
-    const p1 = spinReel(1, res[1], base + 450);
-    const p2 = spinReel(2, res[2], tension ? base + 2700 : base + 900);
-    await p0;
-    await p1;
-    if (tension) {
-      reels[2].classList.add('tension');
-      setMsg('😱 ¡¡CASI… CASI…!!', 'tension');
-      sfx.tension();
-      sfx.drumroll(1600);
-      fx.party(machine, 1800);
-    }
-    await p2;
-    clearInterval(ticker);
-
-    const win = outcome.kind === 'mega' ? 0 : Math.round(b * outcome.mult);
-    const names = [...new Set(res.filter((s) => s.key !== 'wild').map((s) => `${s.emoji} ${s.name}`))].join(' + ') || '⭐ Lo mejor de lo mejor';
-    let headline = `🎰 ${names}`;
-
-    if (outcome.kind === 'mega') {
-      reels.forEach((r) => r.classList.add('winner'));
-      machine.classList.add('big-win');
-      const amount = takeJackpot();
-      renderJackpot();
-      stat('jackpots');
-      setMsg(`🌟 ¡¡MEGA JACKPOT!! +${fmt(amount)} 🌟`, 'big');
-      sfx.jackpot();
-      fx.shake('lg');
-      fx.flash('#ffc93c');
-      fx.fireworks(4000);
-      fx.coinRain(120);
-      fx.party(machine, 4000);
-      headline = `🌟 MEGA JACKPOT · +${fmt(amount)} fichas`;
-      await fx.banner('MEGA JACKPOT', `+${fmt(amount)} fichas`, 'var(--gold)', 2600);
-    } else if (outcome.kind === 'jackpot') {
-      reels.forEach((r) => r.classList.add('winner'));
-      machine.classList.add('big-win');
-      earn(win);
-      stat('jackpots');
-      setMsg(`💥 ¡JACKPOT! +${fmt(win)} 🪙`, 'big');
-      sfx.jackpot();
-      fx.shake('lg');
-      fx.fireworks(2500);
-      fx.coinRain(70);
-      fx.party(machine, 3000);
-      headline = `💥 ¡JACKPOT! +${fmt(win)} · ${names}`;
-      await fx.banner('¡JACKPOT!', `+${fmt(win)} fichas`, 'var(--red)');
-    } else if (outcome.kind === 'pair') {
-      res.forEach((s, i) => {
-        if (res.some((o, j) => j !== i && matches(s, o))) reels[i].classList.add('winner');
+    function spinReel(i: number, target: Sym, ms: number): Promise<void> {
+      const extra = Array.from({ length: 16 + i * 5 + Math.floor(ms / 110) }, roll);
+      const list = [...visible[i], ...extra, target, roll()];
+      const L = list.length;
+      const strip = setStrip(i, list);
+      void strip.offsetHeight;
+      strip.style.transition = `transform ${ms}ms cubic-bezier(.15,.85,.25,1.04)`;
+      strip.style.transform = `translateY(${-(L - 3) * rowH()}px)`;
+      reels[i].classList.add('spinning');
+      setTimeout(() => reels[i].classList.remove('spinning'), ms * 0.72);
+      return sleep(ms + 40).then(() => {
+        visible[i] = list.slice(L - 3);
+        setStrip(i, visible[i]);
+        reels[i].classList.remove('tension');
+        reels[i].classList.add('stopped');
+        setTimeout(() => reels[i].classList.remove('stopped'), 350);
+        sfx.thud();
       });
-      machine.classList.add('win');
-      earn(win);
-      setMsg(`✨ ¡Pareja! +${fmt(win)} 🪙`, 'win');
-      sfx.win();
-      sfx.coins(4);
-      fx.burst({ particleCount: 70, origin: { y: 0.5 } });
-      fx.party(machine, 1200);
-      headline = `✨ ¡Pareja! +${fmt(win)} · ${names}`;
-    } else {
-      const almost = res.filter((s, i) => res.some((o, j) => j !== i && s.key === o.key)).length;
-      setMsg(almost ? '😩 ¡Por un pelo! Otra y cae…' : `🎬 Premio de consolación: ${names}`, '');
     }
 
-    const t = await titleP;
-    if (t) addHistory(t, b);
-    spinning = false;
-    spinBtn.disabled = false;
-
-    if (autoBox.checked) {
-      setTimeout(() => autoBox.checked && spin(), outcome.kind === 'none' ? 700 : 1400);
-    } else if (t) {
-      await sleep(350);
-      showTitle(t, { headline, reveal: true, prize: true });
-    } else {
-      fx.toast('TMDB no ha devuelto nada para esa combinación. ¡Tira otra vez!', { icon: '🤷' });
+    function findTitle(r: Sym[], kind: Kind, b: number): Promise<Title | null> {
+      const type = pickType();
+      const ids = [...new Set(r.filter((s) => s.key !== 'wild').map((s) => s[type]!))];
+      let minVote = MIN_VOTE[b];
+      let minVotes = 150;
+      if (kind === 'jackpot') {
+        minVote += 0.6;
+        minVotes = 400;
+      }
+      if (kind === 'mega') {
+        minVote = 7.9;
+        minVotes = 1000;
+      }
+      return luckyPick(type, { genres: ids, minVote, minVotes }, kind === 'none' ? 25 : 12);
     }
-  }
 
-  function renderJackpot() {
-    jpEl.textContent = fmt(getState().jackpot);
-  }
-  renderJackpot();
-  // El bote "crece solo", como en los casinos de verdad. Sin guardar en cada tic: escribir la partida
-  // entera cada 2 s gastaba batería y hacía que las demás pestañas abiertas se repintaran sin parar.
-  setInterval(() => {
-    if (document.hidden) return;
-    const before = getState().jackpot;
-    bumpJackpot(rand(1, 9), false);
-    fx.countUp(jpEl, before, getState().jackpot, 900);
-  }, 2200);
+    function setMsg(html: string, cls = '') {
+      msg.className = `slot-msg ${cls}`;
+      msg.innerHTML = html;
+    }
 
-  document.getElementById('bets')!.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-bet]');
-    if (!btn || spinning) return;
-    bet = Number(btn.dataset.bet);
-    document.querySelectorAll('.bet').forEach((b) => b.classList.toggle('active', b === btn));
-    sfx.coin();
-  });
-  spinBtn.addEventListener('click', spin);
-  lever.addEventListener('click', spin);
-  autoBox.addEventListener('change', () => autoBox.checked && !spinning && spin());
-  document.addEventListener('keydown', (e) => {
-    if (e.code !== 'Space' || (document.getElementById('modal') as HTMLDialogElement).open) return;
-    if ((e.target as HTMLElement).matches('input, textarea')) return;
-    e.preventDefault();
-    spin();
+    function addHistory(t: Title, b: number) {
+      if (history.querySelector('p')) history.innerHTML = '';
+      // Ganado: se puede guardar desde el historial aunque cierres la ficha. Apostar más sube el arte.
+      const arte = grantClaim(t, luckForBet(b));
+      history.insertAdjacentHTML('afterbegin', tileHTML(t, { size: 'w185', arte, sellos: false }));
+      while (history.children.length > 12) history.lastElementChild!.remove();
+    }
+
+    async function spin() {
+      if (spinning) return;
+      if (!spend(bet)) {
+        autoBox.checked = false;
+        return;
+      }
+      const b = bet;
+      spinning = true;
+      spinBtn.disabled = true;
+      stat('slots');
+      bumpJackpot(b * 0.25);
+      renderJackpot();
+      sfx.lever();
+      lever.classList.remove('pulled');
+      void lever.offsetWidth;
+      lever.classList.add('pulled');
+      machine.classList.remove('win', 'big-win');
+      reels.forEach((r) => r.classList.remove('winner'));
+      setMsg('🎲 Girando…', 'spinning');
+
+      const res = [roll(), roll(), roll()];
+      const outcome = evaluate(res);
+      const titleP = findTitle(res, outcome.kind, b).catch(() => null);
+
+      const ticker = setInterval(() => sfx.tick(), 70);
+      const base = 1300;
+      const tension = matches(res[0], res[1]);
+      const p0 = spinReel(0, res[0], base);
+      const p1 = spinReel(1, res[1], base + 450);
+      const p2 = spinReel(2, res[2], tension ? base + 2700 : base + 900);
+      await p0;
+      await p1;
+      if (tension) {
+        reels[2].classList.add('tension');
+        setMsg('😱 ¡¡CASI… CASI…!!', 'tension');
+        sfx.tension();
+        sfx.drumroll(1600);
+        fx.party(machine, 1800);
+      }
+      await p2;
+      clearInterval(ticker);
+
+      const win = outcome.kind === 'mega' ? 0 : Math.round(b * outcome.mult);
+      const names = [...new Set(res.filter((s) => s.key !== 'wild').map((s) => `${s.emoji} ${s.name}`))].join(' + ') || '⭐ Lo mejor de lo mejor';
+      let headline = `🎰 ${names}`;
+
+      if (outcome.kind === 'mega') {
+        reels.forEach((r) => r.classList.add('winner'));
+        machine.classList.add('big-win');
+        const amount = takeJackpot();
+        renderJackpot();
+        stat('jackpots');
+        setMsg(`🌟 ¡¡MEGA JACKPOT!! +${fmt(amount)} 🌟`, 'big');
+        sfx.jackpot();
+        fx.shake('lg');
+        fx.flash('#ffc93c');
+        fx.fireworks(4000);
+        fx.coinRain(120);
+        fx.party(machine, 4000);
+        headline = `🌟 MEGA JACKPOT · +${fmt(amount)} fichas`;
+        await fx.banner('MEGA JACKPOT', `+${fmt(amount)} fichas`, 'var(--gold)', 2600);
+      } else if (outcome.kind === 'jackpot') {
+        reels.forEach((r) => r.classList.add('winner'));
+        machine.classList.add('big-win');
+        earn(win);
+        stat('jackpots');
+        setMsg(`💥 ¡JACKPOT! +${fmt(win)} 🪙`, 'big');
+        sfx.jackpot();
+        fx.shake('lg');
+        fx.fireworks(2500);
+        fx.coinRain(70);
+        fx.party(machine, 3000);
+        headline = `💥 ¡JACKPOT! +${fmt(win)} · ${names}`;
+        await fx.banner('¡JACKPOT!', `+${fmt(win)} fichas`, 'var(--red)');
+      } else if (outcome.kind === 'pair') {
+        res.forEach((s, i) => {
+          if (res.some((o, j) => j !== i && matches(s, o))) reels[i].classList.add('winner');
+        });
+        machine.classList.add('win');
+        earn(win);
+        setMsg(`✨ ¡Pareja! +${fmt(win)} 🪙`, 'win');
+        sfx.win();
+        sfx.coins(4);
+        fx.burst({ particleCount: 70, origin: { y: 0.5 } });
+        fx.party(machine, 1200);
+        headline = `✨ ¡Pareja! +${fmt(win)} · ${names}`;
+      } else {
+        const almost = res.filter((s, i) => res.some((o, j) => j !== i && s.key === o.key)).length;
+        setMsg(almost ? '😩 ¡Por un pelo! Otra y cae…' : `🎬 Premio de consolación: ${names}`, '');
+      }
+
+      const t = await titleP;
+      if (t) addHistory(t, b);
+      spinning = false;
+      spinBtn.disabled = false;
+
+      if (autoBox.checked) {
+        setTimeout(() => autoBox.checked && spin(), outcome.kind === 'none' ? 700 : 1400);
+      } else if (t) {
+        await sleep(350);
+        showTitle(t, { headline, reveal: true, prize: true });
+      } else {
+        fx.toast('TMDB no ha devuelto nada para esa combinación. ¡Tira otra vez!', { icon: '🤷' });
+      }
+    }
+
+    function renderJackpot() {
+      jpEl.textContent = fmt(getState().jackpot);
+    }
+    renderJackpot();
+    // El bote "crece solo", como en los casinos de verdad. Sin guardar en cada tic: escribir la partida
+    // entera cada 2 s gastaba batería y hacía que las demás pestañas abiertas se repintaran sin parar.
+    page.every(2200, () => {
+      if (document.hidden) return;
+      const before = getState().jackpot;
+      bumpJackpot(rand(1, 9), false);
+      fx.countUp(jpEl, before, getState().jackpot, 900);
+    });
+
+    document.getElementById('bets')!.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-bet]');
+      if (!btn || spinning) return;
+      bet = Number(btn.dataset.bet);
+      document.querySelectorAll('.bet').forEach((b) => b.classList.toggle('active', b === btn));
+      sfx.coin();
+    });
+    spinBtn.addEventListener('click', spin);
+    lever.addEventListener('click', spin);
+    autoBox.addEventListener('change', () => autoBox.checked && !spinning && spin());
+    page.on(document, 'keydown', (e) => {
+      if (e.code !== 'Space' || (document.getElementById('modal') as HTMLDialogElement).open) return;
+      if ((e.target as Element).matches?.('input, textarea, select, button')) return;
+      e.preventDefault();
+      spin();
+    });
   });
 </script>

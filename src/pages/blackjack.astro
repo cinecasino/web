@@ -59,223 +59,226 @@ import Casino from '../layouts/Casino.astro';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
   import { esc, fmt, sleep } from '../lib/util';
+  import { onPage } from '../lib/page';
 
-  const $ = (id: string) => document.getElementById(id)!;
-  const dealerEl = $('dealer');
-  const playerEl = $('player');
-  const msg = $('bj-msg');
-  const dealBtn = $('deal') as HTMLButtonElement;
-  const prizeBtn = $('prize') as HTMLButtonElement;
-  const hitBtn = $('hit') as HTMLButtonElement;
-  const standBtn = $('stand') as HTMLButtonElement;
-  const doubleBtn = $('double') as HTMLButtonElement;
+  onPage('.bj-table', (page) => {
+    const $ = (id: string) => document.getElementById(id)!;
+    const dealerEl = $('dealer');
+    const playerEl = $('player');
+    const msg = $('bj-msg');
+    const dealBtn = $('deal') as HTMLButtonElement;
+    const prizeBtn = $('prize') as HTMLButtonElement;
+    const hitBtn = $('hit') as HTMLButtonElement;
+    const standBtn = $('stand') as HTMLButtonElement;
+    const doubleBtn = $('double') as HTMLButtonElement;
 
-  const deck = new Deck(300);
-  let bet = 25;
-  let stake = 0;
-  let playing = false;
-  let busy = false;
-  let holeHidden = true;
-  let player: Title[] = [];
-  let dealer: Title[] = [];
-  let prize: Title | null = null;
+    const deck = new Deck(300);
+    let bet = 25;
+    let stake = 0;
+    let playing = false;
+    let busy = false;
+    let holeHidden = true;
+    let player: Title[] = [];
+    let dealer: Title[] = [];
+    let prize: Title | null = null;
 
-  const back = '<div class="bj-card back"><span>🎰</span></div>';
-  const cardHTML = (t: Title, isNew: boolean) =>
-    `<div class="bj-card${isNew ? ' deal' : ''}">${tileHTML(t, { size: 'w185', sellos: false })}<span class="bj-val">${cardLabel(t)}</span></div>`;
-  // Cuántas cartas había ya pintadas: solo la nueva entra con animación
-  let shownP = 0;
-  let shownD = 0;
-  let shownHole = true;
+    const back = '<div class="bj-card back"><span>🎰</span></div>';
+    const cardHTML = (t: Title, isNew: boolean) =>
+      `<div class="bj-card${isNew ? ' deal' : ''}">${tileHTML(t, { size: 'w185', sellos: false })}<span class="bj-val">${cardLabel(t)}</span></div>`;
+    // Cuántas cartas había ya pintadas: solo la nueva entra con animación
+    let shownP = 0;
+    let shownD = 0;
+    let shownHole = true;
 
-  function render() {
-    playerEl.innerHTML = player.map((t, i) => cardHTML(t, i >= shownP)).join('');
-    dealerEl.innerHTML = dealer.map((t, i) => (i === 1 && holeHidden ? back : cardHTML(t, i >= shownD || (i === 1 && shownHole)))).join('');
-    shownP = player.length;
-    shownD = dealer.length;
-    shownHole = holeHidden;
-    const p = handValue(player);
-    $('player-total').textContent = player.length ? `${p.total}${p.soft && p.total < 21 ? ' (blando)' : ''}` : '—';
-    $('dealer-total').textContent = dealer.length ? String(handValue(holeHidden ? dealer.slice(0, 1) : dealer).total) + (holeHidden ? ' + ?' : '') : '—';
-  }
+    function render() {
+      playerEl.innerHTML = player.map((t, i) => cardHTML(t, i >= shownP)).join('');
+      dealerEl.innerHTML = dealer.map((t, i) => (i === 1 && holeHidden ? back : cardHTML(t, i >= shownD || (i === 1 && shownHole)))).join('');
+      shownP = player.length;
+      shownD = dealer.length;
+      shownHole = holeHidden;
+      const p = handValue(player);
+      $('player-total').textContent = player.length ? `${p.total}${p.soft && p.total < 21 ? ' (blando)' : ''}` : '—';
+      $('dealer-total').textContent = dealer.length ? String(handValue(holeHidden ? dealer.slice(0, 1) : dealer).total) + (holeHidden ? ' + ?' : '') : '—';
+    }
 
-  function renderActions() {
-    $('play-actions').hidden = !playing;
-    $('bet-actions').hidden = playing;
-    hitBtn.disabled = standBtn.disabled = busy;
-    doubleBtn.disabled = busy || player.length !== 2;
-    dealBtn.disabled = busy;
-    document.querySelectorAll<HTMLButtonElement>('.bet').forEach((b) => (b.disabled = playing));
-  }
+    function renderActions() {
+      $('play-actions').hidden = !playing;
+      $('bet-actions').hidden = playing;
+      hitBtn.disabled = standBtn.disabled = busy;
+      doubleBtn.disabled = busy || player.length !== 2;
+      dealBtn.disabled = busy;
+      document.querySelectorAll<HTMLButtonElement>('.bet').forEach((b) => (b.disabled = playing));
+    }
 
-  /** Una carta que no esté ya en la mesa. */
-  const draw = () => deck.next((t) => ![...player, ...dealer].some((c) => c.key === t.key));
+    /** Una carta que no esté ya en la mesa. */
+    const draw = () => deck.next((t) => ![...player, ...dealer].some((c) => c.key === t.key));
 
-  /** Si TMDB falla a mitad de mano: se devuelve lo apostado y se acaba la mano. */
-  function abort() {
-    earn(stake);
-    fx.toast('Se ha perdido la conexión con TMDB. Te devolvemos la apuesta.', { icon: '📡' });
-    playing = busy = false;
-    msg.textContent = 'Mano anulada';
-    renderActions();
-  }
+    /** Si TMDB falla a mitad de mano: se devuelve lo apostado y se acaba la mano. */
+    function abort() {
+      earn(stake);
+      fx.toast('Se ha perdido la conexión con TMDB. Te devolvemos la apuesta.', { icon: '📡' });
+      playing = busy = false;
+      msg.textContent = 'Mano anulada';
+      renderActions();
+    }
 
-  async function deal() {
-    if (playing || busy) return;
-    if (!spend(bet)) return;
-    stake = bet;
-    busy = true;
-    prize = null;
-    prizeBtn.hidden = true;
-    holeHidden = true;
-    player = [];
-    dealer = [];
-    shownP = shownD = 0;
-    shownHole = true;
-    renderActions();
-    msg.textContent = '🂡 Repartiendo…';
-    sfx.whoosh();
-    try {
-      for (const hand of [player, dealer, player, dealer]) {
-        hand.push(await draw());
-        render();
-        sfx.tick();
-        await sleep(220);
+    async function deal() {
+      if (playing || busy) return;
+      if (!spend(bet)) return;
+      stake = bet;
+      busy = true;
+      prize = null;
+      prizeBtn.hidden = true;
+      holeHidden = true;
+      player = [];
+      dealer = [];
+      shownP = shownD = 0;
+      shownHole = true;
+      renderActions();
+      msg.textContent = '🂡 Repartiendo…';
+      sfx.whoosh();
+      try {
+        for (const hand of [player, dealer, player, dealer]) {
+          hand.push(await draw());
+          render();
+          sfx.tick();
+          await sleep(220);
+        }
+      } catch {
+        return abort();
       }
-    } catch {
-      return abort();
+      stat('blackjack');
+      playing = true;
+      if (isBlackjack(player) || isBlackjack(dealer)) return finish();
+      busy = false;
+      msg.innerHTML = '¿Pides o te plantas?';
+      renderActions();
     }
-    stat('blackjack');
-    playing = true;
-    if (isBlackjack(player) || isBlackjack(dealer)) return finish();
-    busy = false;
-    msg.innerHTML = '¿Pides o te plantas?';
-    renderActions();
-  }
 
-  async function hit() {
-    if (!playing || busy) return;
-    busy = true;
-    renderActions();
-    try {
-      player.push(await draw());
-    } catch {
-      return abort();
-    }
-    render();
-    sfx.thud();
-    if (isBust(player)) return finish();
-    if (handValue(player).total === 21) return stand();
-    busy = false;
-    renderActions();
-  }
-
-  async function stand() {
-    if (!playing) return;
-    busy = true;
-    renderActions();
-    holeHidden = false;
-    render();
-    sfx.reveal();
-    await sleep(600);
-    try {
-      while (dealerHits(dealer)) {
-        msg.textContent = '🏦 La banca pide carta…';
-        dealer.push(await draw());
-        render();
-        sfx.tick();
-        await sleep(650);
+    async function hit() {
+      if (!playing || busy) return;
+      busy = true;
+      renderActions();
+      try {
+        player.push(await draw());
+      } catch {
+        return abort();
       }
-    } catch {
-      return abort();
+      render();
+      sfx.thud();
+      if (isBust(player)) return finish();
+      if (handValue(player).total === 21) return stand();
+      busy = false;
+      renderActions();
     }
-    finish();
-  }
 
-  async function double() {
-    if (!playing || busy || player.length !== 2) return;
-    if (!spend(bet)) return;
-    stake += bet;
-    busy = true;
-    renderActions();
-    try {
-      player.push(await draw());
-    } catch {
-      return abort();
-    }
-    render();
-    sfx.coin();
-    await sleep(400);
-    if (isBust(player)) finish();
-    else stand();
-  }
-
-  const TEXT: Record<Outcome, string> = {
-    blackjack: '🃏 ¡BLACKJACK!',
-    win: '🏆 ¡Ganas a la banca!',
-    push: '🤝 Empate: recuperas la apuesta',
-    lose: '💀 Gana la banca',
-  };
-
-  function finish() {
-    holeHidden = false;
-    render();
-    const out = settle(player, dealer);
-    const back = Math.round(stake * PAYOUT[out]);
-    if (back) earn(back);
-    const p = handValue(player).total;
-    const d = handValue(dealer).total;
-    const detail = p > 21 ? `Te pasas con ${p}` : d > 21 ? `La banca se pasa con ${d}` : `${p} contra ${d}`;
-    msg.innerHTML = `${TEXT[out]} <small>${detail}${back > stake ? ` · +${fmt(back - stake)} 🪙` : ''}</small>`;
-    msg.className = `bj-msg ${out}`;
-    if (out === 'blackjack' || out === 'win') {
-      stat('blackjackWins');
-      if (out === 'blackjack') stat('blackjacks');
-      // El premio: la peli mejor valorada de tu mano, con un arte sorteado (más suerte cuanto más apostaste)
-      prize = [...player].sort((a, b) => b.vote - a.vote)[0];
-      grantClaim(prize, luckForBet(stake));
-      prizeBtn.hidden = false;
-      prizeBtn.innerHTML = `🎬 Tu premio: ${esc(prize.title)}`;
-      if (out === 'blackjack') {
-        sfx.jackpot();
-        fx.fireworks(2200);
-        fx.coinRain(60);
-        fx.banner('¡BLACKJACK!', `+${fmt(back - stake)} fichas`, 'var(--gold)', 1800);
-      } else {
-        sfx.win();
-        sfx.coins(5);
-        fx.burst({ particleCount: 90 });
+    async function stand() {
+      if (!playing) return;
+      busy = true;
+      renderActions();
+      holeHidden = false;
+      render();
+      sfx.reveal();
+      await sleep(600);
+      try {
+        while (dealerHits(dealer)) {
+          msg.textContent = '🏦 La banca pide carta…';
+          dealer.push(await draw());
+          render();
+          sfx.tick();
+          await sleep(650);
+        }
+      } catch {
+        return abort();
       }
-    } else if (out === 'push') sfx.click();
-    else {
-      sfx.lose();
-      fx.shake('sm');
+      finish();
     }
-    playing = busy = false;
-    renderActions();
-  }
 
-  $('bets').addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-bet]');
-    if (!b || playing) return;
-    bet = Number(b.dataset.bet);
-    document.querySelectorAll('.bet').forEach((x) => x.classList.toggle('active', x === b));
-    sfx.coin();
+    async function double() {
+      if (!playing || busy || player.length !== 2) return;
+      if (!spend(bet)) return;
+      stake += bet;
+      busy = true;
+      renderActions();
+      try {
+        player.push(await draw());
+      } catch {
+        return abort();
+      }
+      render();
+      sfx.coin();
+      await sleep(400);
+      if (isBust(player)) finish();
+      else stand();
+    }
+
+    const TEXT: Record<Outcome, string> = {
+      blackjack: '🃏 ¡BLACKJACK!',
+      win: '🏆 ¡Ganas a la banca!',
+      push: '🤝 Empate: recuperas la apuesta',
+      lose: '💀 Gana la banca',
+    };
+
+    function finish() {
+      holeHidden = false;
+      render();
+      const out = settle(player, dealer);
+      const back = Math.round(stake * PAYOUT[out]);
+      if (back) earn(back);
+      const p = handValue(player).total;
+      const d = handValue(dealer).total;
+      const detail = p > 21 ? `Te pasas con ${p}` : d > 21 ? `La banca se pasa con ${d}` : `${p} contra ${d}`;
+      msg.innerHTML = `${TEXT[out]} <small>${detail}${back > stake ? ` · +${fmt(back - stake)} 🪙` : ''}</small>`;
+      msg.className = `bj-msg ${out}`;
+      if (out === 'blackjack' || out === 'win') {
+        stat('blackjackWins');
+        if (out === 'blackjack') stat('blackjacks');
+        // El premio: la peli mejor valorada de tu mano, con un arte sorteado (más suerte cuanto más apostaste)
+        prize = [...player].sort((a, b) => b.vote - a.vote)[0];
+        grantClaim(prize, luckForBet(stake));
+        prizeBtn.hidden = false;
+        prizeBtn.innerHTML = `🎬 Tu premio: ${esc(prize.title)}`;
+        if (out === 'blackjack') {
+          sfx.jackpot();
+          fx.fireworks(2200);
+          fx.coinRain(60);
+          fx.banner('¡BLACKJACK!', `+${fmt(back - stake)} fichas`, 'var(--gold)', 1800);
+        } else {
+          sfx.win();
+          sfx.coins(5);
+          fx.burst({ particleCount: 90 });
+        }
+      } else if (out === 'push') sfx.click();
+      else {
+        sfx.lose();
+        fx.shake('sm');
+      }
+      playing = busy = false;
+      renderActions();
+    }
+
+    $('bets').addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-bet]');
+      if (!b || playing) return;
+      bet = Number(b.dataset.bet);
+      document.querySelectorAll('.bet').forEach((x) => x.classList.toggle('active', x === b));
+      sfx.coin();
+    });
+    dealBtn.addEventListener('click', deal);
+    hitBtn.addEventListener('click', hit);
+    standBtn.addEventListener('click', stand);
+    doubleBtn.addEventListener('click', double);
+    prizeBtn.addEventListener('click', () => prize && showTitle(prize, { headline: '🂡 Premio del Blackjack', reveal: true, prize: true }));
+    page.on(document, 'keydown', (e) => {
+      if ((document.getElementById('modal') as HTMLDialogElement).open || (e.target as Element).matches?.('input, textarea, select')) return;
+      const k = e.key.toLowerCase();
+      if (playing && k === 'h') hit();
+      else if (playing && k === 's') stand();
+      else if (playing && k === 'd') double();
+      else if (!playing && e.key === 'Enter' && (e.target as HTMLElement) === document.body) deal();
+    });
+
+    renderActions();
+    deck.refill().catch(() => {});
   });
-  dealBtn.addEventListener('click', deal);
-  hitBtn.addEventListener('click', hit);
-  standBtn.addEventListener('click', stand);
-  doubleBtn.addEventListener('click', double);
-  prizeBtn.addEventListener('click', () => prize && showTitle(prize, { headline: '🂡 Premio del Blackjack', reveal: true, prize: true }));
-  document.addEventListener('keydown', (e) => {
-    if ((document.getElementById('modal') as HTMLDialogElement).open || (e.target as HTMLElement).matches('input, textarea, select')) return;
-    const k = e.key.toLowerCase();
-    if (playing && k === 'h') hit();
-    else if (playing && k === 's') stand();
-    else if (playing && k === 'd') double();
-    else if (!playing && e.key === 'Enter' && (e.target as HTMLElement) === document.body) deal();
-  });
-
-  renderActions();
-  deck.refill().catch(() => {});
 </script>

@@ -2,7 +2,7 @@
 import { closeModal, lookup, showTitle } from './card';
 import { initAccount, type Announcement, type Me } from './account';
 import { showCookieBanner } from './consent';
-import { initPwa } from './pwa';
+import { initPwa, refreshInstallButtons } from './pwa';
 import { sfx } from './sfx';
 import * as fx from './fx';
 import { esc, pick, rand } from './util';
@@ -73,10 +73,7 @@ modal.addEventListener('close', () => {
   fx.liftFx(null);
 });
 
-// Evento de temporada: tema de colores y lo que se compila oculto con data-event (tarjetas, cajas, menú)
 const ev = activeEvent();
-if (ev) document.body.classList.add(`ev-${ev.id}`);
-document.querySelectorAll<HTMLElement>('[data-event]').forEach((el) => (el.hidden = el.dataset.event !== ev?.id));
 const eventAnnouncement = (): Announcement | null => (ev ? { id: `ev-${ev.id}-${new Date().getFullYear()}`, text: ev.banner, level: 'event' } : null);
 
 // Fondo: emojis flotando (menos en móvil y ninguno si se ha pedido reducir el movimiento)
@@ -128,13 +125,46 @@ function renderAnnouncement(a: Announcement | null) {
   });
 }
 
-if (document.getElementById('hud-coins')) import('./hud');
-showCookieBanner();
+// ---------- Lo que hay que rehacer en cada página ----------
+// Sin router (landing, legales, cuenta) este script se ejecuta en cada carga. Con el router de Astro
+// (páginas del casino) solo se ejecuta la primera vez, así que esto se repite tras cada cambio de página.
+// La cabecera, el menú, el ticker, la ficha y los efectos se conservan (transition:persist en el layout).
+let announcement: Announcement | null = null;
+let user: Me | null = null;
+
+function perPage() {
+  // Evento de temporada: tema de colores y lo que se compila oculto con data-event (tarjetas, cajas, menú)
+  if (ev) document.body.classList.add(`ev-${ev.id}`);
+  document.querySelectorAll<HTMLElement>('[data-event]').forEach((el) => (el.hidden = el.dataset.event !== ev?.id));
+  // El menú se conserva entre páginas: hay que marcar a mano la actual
+  const active = document.querySelector<HTMLElement>('main[data-active]')?.dataset.active;
+  document.querySelectorAll<HTMLElement>('.nav a[data-key]').forEach((a) => {
+    const on = a.dataset.key === active;
+    a.classList.toggle('active', on);
+    if (on) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
+  renderAnnouncement(announcement ?? eventAnnouncement());
+  if (ACCOUNTS) renderUser(user);
+  showCookieBanner();
+  refreshInstallButtons();
+  if (document.getElementById('hud-coins')) import('./hud');
+}
+
+// Antes de cambiar de página: la ficha se cierra y los efectos vuelven al <body>
+document.addEventListener('astro:before-preparation', () => {
+  closeModal();
+  fx.liftFx(null);
+});
+document.addEventListener('astro:after-swap', perPage);
+
 initPwa();
+perPage();
 // Modo pages: sin servidor no hay cuentas ni anuncios (solo el del evento); la partida vive solo en este navegador
 if (ACCOUNTS)
-  initAccount().then(({ user, announcement }) => {
+  initAccount().then((r) => {
+    user = r.user;
+    announcement = r.announcement;
     renderUser(user);
     renderAnnouncement(announcement ?? eventAnnouncement());
   });
-else renderAnnouncement(eventAnnouncement());

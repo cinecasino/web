@@ -47,188 +47,191 @@ import Casino from '../layouts/Casino.astro';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
   import { esc, fmt, sleep } from '../lib/util';
+  import { onPage } from '../lib/page';
 
-  const $ = (id: string) => document.getElementById(id)!;
-  const leftEl = $('left');
-  const rightEl = $('right');
-  const startBtn = $('start') as HTMLButtonElement;
-  const cashBtn = $('cashout') as HTMLButtonElement;
-  const guessBox = $('guess-actions');
-  const higher = $('higher') as HTMLButtonElement;
-  const lower = $('lower') as HTMLButtonElement;
+  onPage('.hilo-arena', (page) => {
+    const $ = (id: string) => document.getElementById(id)!;
+    const leftEl = $('left');
+    const rightEl = $('right');
+    const startBtn = $('start') as HTMLButtonElement;
+    const cashBtn = $('cashout') as HTMLButtonElement;
+    const guessBox = $('guess-actions');
+    const higher = $('higher') as HTMLButtonElement;
+    const lower = $('lower') as HTMLButtonElement;
 
-  let bet = 25;
-  let pot = 0;
-  let streak = 0;
-  let playing = false;
-  let busy = false;
-  const deck = new Deck();
-  let left: Title | null = null;
-  let right: Title | null = null;
+    let bet = 25;
+    let pot = 0;
+    let streak = 0;
+    let playing = false;
+    let busy = false;
+    const deck = new Deck();
+    let left: Title | null = null;
+    let right: Title | null = null;
 
-  const potFor = (k: number) => Math.round(bet * Math.pow(1.45, k));
+    const potFor = (k: number) => Math.round(bet * Math.pow(1.45, k));
 
-  /** Siguiente carta con una nota distinta de la de referencia (si no, sería un empate tonto). */
-  const nextFor = (ref: Title | null) =>
-    deck.next((t) => !ref || (t.vote !== ref.vote && t.key !== ref.key), [left?.key, right?.key].filter(Boolean) as string[]);
+    /** Siguiente carta con una nota distinta de la de referencia (si no, sería un empate tonto). */
+    const nextFor = (ref: Title | null) =>
+      deck.next((t) => !ref || (t.vote !== ref.vote && t.key !== ref.key), [left?.key, right?.key].filter(Boolean) as string[]);
 
-  function cardHTML(t: Title, showVote: boolean) {
-    const r = rarityOf(t);
-    register(t);
-    // La carta oculta va en neutro: el color de rareza delataría la nota
-    return `<div class="hilo-inner ${showVote ? `r-${r}` : 'r-hidden'}" data-rarity="${r}" ${showVote ? `data-title-key="${t.key}" role="button" tabindex="0"` : ''}>
-      <img src="${img(t.poster, 'w342')}" alt="">
-      <div class="hilo-info">
-        <span class="chip">${t.type === 'movie' ? '🎬' : '📺'} ${t.year}</span>
-        <h3>${esc(t.title)}</h3>
-        <div class="hilo-vote ${showVote ? '' : 'hidden-vote'}" data-vote>${showVote ? t.vote.toFixed(1) : '?.?'}</div>
-        ${showVote ? `<small style="color:${RARITY[r].color}">${RARITY[r].emoji} ${RARITY[r].label}</small>` : '<small>¿más o menos?</small>'}
-      </div>
-    </div>`;
-  }
-
-  function unmask() {
-    const inner = rightEl.querySelector<HTMLElement>('.hilo-inner');
-    if (inner) inner.className = `hilo-inner r-${inner.dataset.rarity}`;
-  }
-
-  function renderStatus() {
-    $('pot').textContent = fmt(pot);
-    $('streak').textContent = String(streak);
-    $('next').textContent = playing ? `${fmt(potFor(streak + 1))} 🪙` : '—';
-    cashBtn.hidden = !playing || streak === 0;
-    startBtn.hidden = playing;
-    guessBox.hidden = !playing;
-    document.querySelectorAll<HTMLButtonElement>('.bet').forEach((b) => (b.disabled = playing));
-  }
-
-  async function start() {
-    if (playing || busy) return;
-    if (!spend(bet)) return;
-    busy = true;
-    startBtn.disabled = true;
-    pot = bet;
-    streak = 0;
-    sfx.whoosh();
-    try {
-      left = await nextFor(null);
-      right = await nextFor(left);
-    } catch {
-      fx.toast('No se pudo cargar TMDB. Te devolvemos la apuesta.', { icon: '📡' });
-      earn(bet);
-      busy = false;
-      startBtn.disabled = false;
-      return;
+    function cardHTML(t: Title, showVote: boolean) {
+      const r = rarityOf(t);
+      register(t);
+      // La carta oculta va en neutro: el color de rareza delataría la nota
+      return `<div class="hilo-inner ${showVote ? `r-${r}` : 'r-hidden'}" data-rarity="${r}" ${showVote ? `data-title-key="${t.key}" role="button" tabindex="0"` : ''}>
+        <img src="${img(t.poster, 'w342')}" alt="">
+        <div class="hilo-info">
+          <span class="chip">${t.type === 'movie' ? '🎬' : '📺'} ${t.year}</span>
+          <h3>${esc(t.title)}</h3>
+          <div class="hilo-vote ${showVote ? '' : 'hidden-vote'}" data-vote>${showVote ? t.vote.toFixed(1) : '?.?'}</div>
+          ${showVote ? `<small style="color:${RARITY[r].color}">${RARITY[r].emoji} ${RARITY[r].label}</small>` : '<small>¿más o menos?</small>'}
+        </div>
+      </div>`;
     }
-    leftEl.innerHTML = cardHTML(left, true);
-    rightEl.innerHTML = cardHTML(right, false);
-    leftEl.className = 'hilo-card deal';
-    rightEl.className = 'hilo-card deal';
-    playing = true;
-    busy = false;
-    startBtn.disabled = false;
-    renderStatus();
-  }
 
-  async function guess(up: boolean) {
-    if (!playing || busy || !left || !right) return;
-    busy = true;
-    higher.disabled = lower.disabled = true;
-    const voteEl = rightEl.querySelector<HTMLElement>('[data-vote]')!;
-    voteEl.classList.remove('hidden-vote');
-    unmask();
-    sfx.drumroll(900);
-    fx.countUp(voteEl, 0, right.vote, 1100, (n) => n.toFixed(1), () => sfx.tick());
-    await sleep(1200);
-    const ok = up ? right.vote >= left.vote : right.vote <= left.vote;
-    if (ok) {
-      streak++;
-      const prev = pot;
-      pot = potFor(streak);
-      rightEl.classList.add('correct');
-      sfx.win();
-      fx.burst({ particleCount: 50 + streak * 15, origin: { y: 0.55 } });
-      fx.countUp($('pot'), prev, pot, 600);
-      fx.floatFrom($('pot'), `x${(pot / bet).toFixed(1)}`, 'pos');
-      if (streak >= 5) fx.shake('sm');
-      if (streak % 5 === 0) fx.banner(`¡RACHA DE ${streak}!`, `Bote: ${fmt(pot)} 🪙`, 'var(--pink)', 1500);
-      statMax('hiloBest', streak);
-      await sleep(900);
-      let next: Title;
+    function unmask() {
+      const inner = rightEl.querySelector<HTMLElement>('.hilo-inner');
+      if (inner) inner.className = `hilo-inner r-${inner.dataset.rarity}`;
+    }
+
+    function renderStatus() {
+      $('pot').textContent = fmt(pot);
+      $('streak').textContent = String(streak);
+      $('next').textContent = playing ? `${fmt(potFor(streak + 1))} 🪙` : '—';
+      cashBtn.hidden = !playing || streak === 0;
+      startBtn.hidden = playing;
+      guessBox.hidden = !playing;
+      document.querySelectorAll<HTMLButtonElement>('.bet').forEach((b) => (b.disabled = playing));
+    }
+
+    async function start() {
+      if (playing || busy) return;
+      if (!spend(bet)) return;
+      busy = true;
+      startBtn.disabled = true;
+      pot = bet;
+      streak = 0;
+      sfx.whoosh();
       try {
-        next = await nextFor(right);
+        left = await nextFor(null);
+        right = await nextFor(left);
       } catch {
-        // Sin conexión a mitad de racha: se cobra el bote en vez de dejar la partida colgada
+        fx.toast('No se pudo cargar TMDB. Te devolvemos la apuesta.', { icon: '📡' });
+        earn(bet);
         busy = false;
-        higher.disabled = lower.disabled = false;
-        fx.toast('Se ha perdido la conexión con TMDB. Te plantamos con lo ganado.', { icon: '📡' });
-        cashout();
+        startBtn.disabled = false;
         return;
       }
-      left = right;
-      right = next;
       leftEl.innerHTML = cardHTML(left, true);
       rightEl.innerHTML = cardHTML(right, false);
-      leftEl.className = 'hilo-card slide';
+      leftEl.className = 'hilo-card deal';
       rightEl.className = 'hilo-card deal';
+      playing = true;
+      busy = false;
+      startBtn.disabled = false;
       renderStatus();
-    } else {
-      rightEl.classList.add('wrong');
-      leftEl.classList.add('dim');
-      rightEl.querySelector('.hilo-inner')!.setAttribute('data-title-key', right.key);
-      sfx.lose();
-      fx.shake('lg');
-      fx.flash('#ff2f55');
+    }
+
+    async function guess(up: boolean) {
+      if (!playing || busy || !left || !right) return;
+      busy = true;
+      higher.disabled = lower.disabled = true;
+      const voteEl = rightEl.querySelector<HTMLElement>('[data-vote]')!;
+      voteEl.classList.remove('hidden-vote');
+      unmask();
+      sfx.drumroll(900);
+      fx.countUp(voteEl, 0, right.vote, 1100, (n) => n.toFixed(1), () => sfx.tick());
+      await sleep(1200);
+      const ok = up ? right.vote >= left.vote : right.vote <= left.vote;
+      if (ok) {
+        streak++;
+        const prev = pot;
+        pot = potFor(streak);
+        rightEl.classList.add('correct');
+        sfx.win();
+        fx.burst({ particleCount: 50 + streak * 15, origin: { y: 0.55 } });
+        fx.countUp($('pot'), prev, pot, 600);
+        fx.floatFrom($('pot'), `x${(pot / bet).toFixed(1)}`, 'pos');
+        if (streak >= 5) fx.shake('sm');
+        if (streak % 5 === 0) fx.banner(`¡RACHA DE ${streak}!`, `Bote: ${fmt(pot)} 🪙`, 'var(--pink)', 1500);
+        statMax('hiloBest', streak);
+        await sleep(900);
+        let next: Title;
+        try {
+          next = await nextFor(right);
+        } catch {
+          // Sin conexión a mitad de racha: se cobra el bote en vez de dejar la partida colgada
+          busy = false;
+          higher.disabled = lower.disabled = false;
+          fx.toast('Se ha perdido la conexión con TMDB. Te plantamos con lo ganado.', { icon: '📡' });
+          cashout();
+          return;
+        }
+        left = right;
+        right = next;
+        leftEl.innerHTML = cardHTML(left, true);
+        rightEl.innerHTML = cardHTML(right, false);
+        leftEl.className = 'hilo-card slide';
+        rightEl.className = 'hilo-card deal';
+        renderStatus();
+      } else {
+        rightEl.classList.add('wrong');
+        leftEl.classList.add('dim');
+        rightEl.querySelector('.hilo-inner')!.setAttribute('data-title-key', right.key);
+        sfx.lose();
+        fx.shake('lg');
+        fx.flash('#ff2f55');
+        stat('hilo');
+        fx.toast(`💀 ¡Palmaste! Perdiste un bote de <b>${fmt(pot)}</b> 🪙 con racha de ${streak}.`, { icon: '🃏', color: 'var(--red)' });
+        pot = 0;
+        playing = false;
+        renderStatus();
+      }
+      higher.disabled = lower.disabled = false;
+      busy = false;
+    }
+
+    function cashout() {
+      if (!playing || busy || streak === 0) return;
+      const amount = pot;
+      earn(amount);
       stat('hilo');
-      fx.toast(`💀 ¡Palmaste! Perdiste un bote de <b>${fmt(pot)}</b> 🪙 con racha de ${streak}.`, { icon: '🃏', color: 'var(--red)' });
+      statMax('hiloBest', streak);
+      sfx.coins(10);
+      fx.coinRain(Math.min(100, 20 + streak * 8));
+      if (streak >= 4) fx.fireworks(2000);
+      fx.toast(`Te plantas con <b>${fmt(amount)}</b> 🪙 (racha ${streak}). Cobarde… o listo. 😏`, { icon: '💰', color: 'var(--gold)' });
+      if (right) rightEl.querySelector('.hilo-inner')!.setAttribute('data-title-key', right.key);
+      const v = rightEl.querySelector<HTMLElement>('[data-vote]');
+      if (v && right) {
+        v.classList.remove('hidden-vote');
+        v.textContent = right.vote.toFixed(1);
+        unmask();
+      }
       pot = 0;
       playing = false;
       renderStatus();
     }
-    higher.disabled = lower.disabled = false;
-    busy = false;
-  }
 
-  function cashout() {
-    if (!playing || busy || streak === 0) return;
-    const amount = pot;
-    earn(amount);
-    stat('hilo');
-    statMax('hiloBest', streak);
-    sfx.coins(10);
-    fx.coinRain(Math.min(100, 20 + streak * 8));
-    if (streak >= 4) fx.fireworks(2000);
-    fx.toast(`Te plantas con <b>${fmt(amount)}</b> 🪙 (racha ${streak}). Cobarde… o listo. 😏`, { icon: '💰', color: 'var(--gold)' });
-    if (right) rightEl.querySelector('.hilo-inner')!.setAttribute('data-title-key', right.key);
-    const v = rightEl.querySelector<HTMLElement>('[data-vote]');
-    if (v && right) {
-      v.classList.remove('hidden-vote');
-      v.textContent = right.vote.toFixed(1);
-      unmask();
-    }
-    pot = 0;
-    playing = false;
+    $('bets').addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-bet]');
+      if (!b || playing) return;
+      bet = Number(b.dataset.bet);
+      document.querySelectorAll('.bet').forEach((x) => x.classList.toggle('active', x === b));
+      sfx.coin();
+    });
+    startBtn.addEventListener('click', start);
+    cashBtn.addEventListener('click', cashout);
+    higher.addEventListener('click', () => guess(true));
+    lower.addEventListener('click', () => guess(false));
+    page.on(document, 'keydown', (e) => {
+      if (!playing || (document.getElementById('modal') as HTMLDialogElement).open) return;
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault(); // que las flechas no desplacen la página mientras juegas
+      guess(e.key === 'ArrowUp');
+    });
+
     renderStatus();
-  }
-
-  $('bets').addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-bet]');
-    if (!b || playing) return;
-    bet = Number(b.dataset.bet);
-    document.querySelectorAll('.bet').forEach((x) => x.classList.toggle('active', x === b));
-    sfx.coin();
+    deck.refill().catch(() => {});
   });
-  startBtn.addEventListener('click', start);
-  cashBtn.addEventListener('click', cashout);
-  higher.addEventListener('click', () => guess(true));
-  lower.addEventListener('click', () => guess(false));
-  document.addEventListener('keydown', (e) => {
-    if (!playing || (document.getElementById('modal') as HTMLDialogElement).open) return;
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-    e.preventDefault(); // que las flechas no desplacen la página mientras juegas
-    guess(e.key === 'ArrowUp');
-  });
-
-  renderStatus();
-  deck.refill().catch(() => {});
 </script>

@@ -19,7 +19,11 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y l
 - **Blackjack de pelis:** cada carta vale su nota redondeada y las Míticas o Divinas son el As; blackjack paga 3:2 y ganar te da la mejor peli de tu mano (con arte sorteado según la apuesta). Comparte mazo con ¿Más o Menos? (`src/lib/deck.ts`).
 - **📤 Compartir:** desde cualquier ficha se crea una imagen 1080×1350 con el póster, la rareza, el arte y los sellos, que se comparte con el menú del sistema o se descarga.
 
+- **Navegación sin recarga** entre las páginas del casino (router de Astro): la cabecera con las fichas, el menú, el ticker y el sonido siguen vivos de un juego a otro, con transición suave. La landing, los textos legales y la cuenta se cargan como siempre. Cada página arranca con `onPage()` (`src/lib/page.ts`), que deshace sus listeners e intervalos al salir.
+- **Lighthouse CI:** el CI mide rendimiento, accesibilidad, buenas prácticas y SEO, y vigila el tamaño de JS, CSS y fuentes.
+
 ### Corregido (en curso)
+- Accesibilidad y SEO que encontró Lighthouse: enlace de cookies sin texto descriptivo, contraste del botón de Mi Botín y orden de encabezados del lobby.
 - Cerrar una ficha y abrir otra al momento (como al salir del Taller) dejaba la nueva vacía.
 
 ### Cambiado
