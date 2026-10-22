@@ -56,6 +56,7 @@ import Casino from '../layouts/Casino.astro';
   import { luckyPick, pickType, type Title } from '../lib/tmdb';
   import { grantClaim, showTitle, tileHTML } from '../lib/card';
   import { evaluate, matches, roll, type Kind, type Sym } from '../lib/slots';
+  import { luckForBet } from '../lib/arts';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
   import { fmt, rand, sleep } from '../lib/util';
@@ -130,10 +131,11 @@ import Casino from '../layouts/Casino.astro';
     msg.innerHTML = html;
   }
 
-  function addHistory(t: Title) {
+  function addHistory(t: Title, b: number) {
     if (history.querySelector('p')) history.innerHTML = '';
-    grantClaim(t); // ganado: se puede guardar desde el historial aunque cierres la ficha
-    history.insertAdjacentHTML('afterbegin', tileHTML(t, { size: 'w185' }));
+    // Ganado: se puede guardar desde el historial aunque cierres la ficha. Apostar más sube el arte.
+    const arte = grantClaim(t, luckForBet(b));
+    history.insertAdjacentHTML('afterbegin', tileHTML(t, { size: 'w185', arte, sellos: false }));
     while (history.children.length > 12) history.lastElementChild!.remove();
   }
 
@@ -229,7 +231,7 @@ import Casino from '../layouts/Casino.astro';
     }
 
     const t = await titleP;
-    if (t) addHistory(t);
+    if (t) addHistory(t, b);
     spinning = false;
     spinBtn.disabled = false;
 

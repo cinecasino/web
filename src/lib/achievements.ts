@@ -1,6 +1,8 @@
 import type { State } from './store';
 import { activeEvent, EVENTS, eventWindow, type GameEvent } from './events';
 import { symbol } from './genres';
+import { isSpecial, RETRO, type Arte } from './arts';
+import { sellosOf, type SelloId } from './sellos';
 
 export interface Achievement {
   id: string;
@@ -16,6 +18,11 @@ export interface Achievement {
 
 const plays = (s: State) => s.stats.slots + s.stats.roulette + s.stats.scratches + s.stats.boxes + s.stats.hilo;
 const owned = (r: string) => (s: State) => s.botin.filter((b) => b.rarity === r).length;
+const withArte = (...a: Arte[]) => (s: State) => s.botin.filter((b) => b.arte && a.includes(b.arte)).length;
+const specials = (s: State) => s.botin.filter((b) => isSpecial(b.arte)).length;
+const distinctArtes = (s: State) => new Set(s.botin.map((b) => b.arte).filter(isSpecial)).size;
+const retroSet = (s: State) => RETRO.filter((a) => s.botin.some((b) => b.arte === a)).length;
+const withSello = (id: SelloId) => (s: State) => s.botin.filter((b) => sellosOf({ ...b, popularity: b.pop }).includes(id)).length;
 
 // Halloween: títulos de terror guardados dentro de las fechas del evento de este año
 const HALLOWEEN = EVENTS.find((e) => e.id === 'halloween')!;
@@ -49,8 +56,23 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'boxes10', icon: '🎁', name: 'Unboxer', desc: 'Abre 10 cajas de botín', goal: 10, reward: 250, value: (s) => s.stats.boxes },
   { id: 'scratch10', icon: '🎟️', name: 'Uñas de acero', desc: 'Rasca 10 boletos', goal: 10, reward: 150, value: (s) => s.stats.scratches },
   { id: 'wheel25', icon: '🎡', name: 'Mareado', desc: 'Gira la ruleta 25 veces', goal: 25, reward: 200, value: (s) => s.stats.roulette },
+  // Rarezas nuevas
+  { id: 'divine', icon: '✨', name: 'Toque divino', desc: 'Consigue un título Divino', goal: 1, reward: 800, value: owned('divina') },
+  { id: 'relic', icon: '👁️', name: 'Arqueólogo', desc: 'Consigue una Reliquia (obra maestra anterior a 1970)', goal: 1, reward: 400, value: owned('reliquia') },
+  { id: 'trash5', icon: '💩', name: 'Coleccionista de bodrios', desc: 'Ten 5 Bodrios en tu botín', goal: 5, reward: 150, value: owned('bodrio') },
+  // Sellos
+  { id: 'gems5', icon: '💎', name: 'Buscador de joyas', desc: 'Ten 5 Joyas ocultas', goal: 5, reward: 300, value: withSello('joya') },
+  { id: 'classics10', icon: '🏛️', name: 'Filmoteca', desc: 'Ten 10 Clásicos (antes de 1980)', goal: 10, reward: 300, value: withSello('clasico') },
+  { id: 'world10', icon: '🌍', name: 'Cine del mundo', desc: 'Ten 10 títulos Internacionales', goal: 10, reward: 300, value: withSello('internacional') },
+  // Artes
+  { id: 'arte1', icon: '🎨', name: 'Edición especial', desc: 'Consigue una carta con arte especial', goal: 1, reward: 100, value: specials },
+  { id: 'artes5', icon: '🖌️', name: 'Galerista', desc: 'Ten 5 artes distintos', goal: 5, reward: 500, value: distinctArtes },
+  { id: 'retro4', icon: '📼', name: 'Nostalgia total', desc: 'Ten los 4 artes retro: Noir, VHS, Pop-art y Píxel', goal: 4, reward: 600, value: retroSet },
+  { id: 'firmada', icon: '✍️', name: 'Autógrafo', desc: 'Consigue una carta Firmada', goal: 1, reward: 1000, value: withArte('firmada') },
+  { id: 'billete', icon: '🎫', name: 'Willy Wonka', desc: 'Encuentra un Billete dorado', goal: 1, reward: 500, value: withArte('billete') },
   { id: `halloween-${YEAR}`, icon: '🎃', name: `Noche de difuntos ${YEAR}`, desc: 'Guarda 3 títulos de terror durante Halloween', goal: 3, reward: 666, value: horrorDuringEvent, event: 'halloween' },
   { id: 'cursed-box', icon: '⚰️', name: 'Profanador', desc: 'Abre la Caja Maldita de Halloween', goal: 1, reward: 300, value: (s) => s.stats.cursed, event: 'halloween' },
+  { id: 'haunted', icon: '👻', name: 'Poseída', desc: 'Consigue una carta Embrujada', goal: 1, reward: 300, value: withArte('embrujada'), event: 'halloween' },
 ];
 
 /** Los de temporada solo cuentan con su evento activo, salvo los que ya tienes. */

@@ -118,6 +118,56 @@ describe('botín', () => {
   });
 });
 
+describe('artes, copias y Taller', () => {
+  it('guarda el arte; un repetido suma copia en vez de otra carta', async () => {
+    const s = await fresh();
+    expect(s.addToBotin(title(), 'holografico')).toBeGreaterThan(0);
+    expect(s.addToBotin(title(), 'dorado')).toBe(0);
+    const b = s.getState().botin;
+    expect(b).toHaveLength(1);
+    expect(b[0]).toMatchObject({ arte: 'holografico', copies: 1 });
+  });
+
+  it('el Taller sube un escalón con 3 copias o con fichas, y no salta escalones', async () => {
+    const s = await fresh();
+    s.addToBotin(title());
+    expect(s.upgradeArte('movie-1', 'holografico', 'coins')).toBe(false); // de normal no se salta a holográfico
+    expect(s.upgradeArte('movie-1', 'brillante', 'copies')).toBe(false); // sin copias
+    for (let i = 0; i < 3; i++) s.addToBotin(title());
+    expect(s.upgradeArte('movie-1', 'brillante', 'copies')).toBe(true);
+    expect(s.savedOf('movie-1')).toMatchObject({ arte: 'brillante', copies: 0 });
+    const before = s.getState().coins;
+    expect(s.upgradeArte('movie-1', 'holografico', 'coins')).toBe(true);
+    expect(s.getState().coins).toBeLessThanOrEqual(before - 400 + 1000); // 400 fichas (más algún logro por el camino)
+    expect(s.savedOf('movie-1')?.arte).toBe('holografico');
+  });
+
+  it('sin fichas suficientes el Taller no cobra nada', async () => {
+    const s = await fresh();
+    s.addToBotin(title());
+    s.spend(s.getState().coins - 100);
+    const coins = s.getState().coins;
+    expect(s.upgradeArte('movie-1', 'brillante', 'coins')).toBe(false);
+    expect(s.getState().coins).toBe(coins);
+  });
+
+  it('el Billete dorado trae 5.000 fichas', async () => {
+    const s = await fresh();
+    const before = s.getState().coins;
+    s.addToBotin(title(), 'billete');
+    expect(s.getState().coins - before).toBeGreaterThanOrEqual(5000);
+  });
+
+  it('las partidas antiguas pasan a las 9 rarezas al cargar', async () => {
+    localStorage.setItem(
+      'cine-casino-v1',
+      JSON.stringify({ v: 1, botin: [{ key: 'movie-9', id: 9, type: 'movie', title: 'Vieja', vote: 8.1, votes: 900, year: '1957', rarity: 'legendaria' }] }),
+    );
+    const s = await fresh();
+    expect(s.getState().botin[0].rarity).toBe('reliquia');
+  });
+});
+
 describe('logros', () => {
   it('la primera partida desbloquea "Bautismo de fuego" con su premio', async () => {
     const s = await fresh();

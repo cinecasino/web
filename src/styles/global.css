@@ -23,11 +23,15 @@
   color-scheme: dark;
 }
 
+.r-bodrio { --rc: #9a7a4a; }
 .r-comun { --rc: #a7b0c0; }
+.r-pococomun { --rc: #4cd964; }
 .r-rara { --rc: #3fa9ff; }
 .r-epica { --rc: #b44cff; }
 .r-legendaria { --rc: #ffb020; }
+.r-reliquia { --rc: #e3c98f; }
 .r-mitica { --rc: #ff3d7f; }
+.r-divina { --rc: #fff3b0; }
 .r-upcoming { --rc: #29f0ff; }
 .r-unrated { --rc: #6e5a8f; }
 
@@ -363,9 +367,13 @@ main { max-width: 1240px; margin: 0 auto; padding: 8px 16px 40px; }
   mix-blend-mode: color-dodge;
   animation: holo 4s linear infinite;
 }
-.r-mitica.holo::after, .r-mitica .holo::after {
+/* Marco arcoíris de las Míticas y dorado-blanco de las Divinas (en la carta y en la ficha). La rareza va
+   en el marco; el tratamiento de la imagen es cosa del arte (src/styles/artes.css). */
+.tile.r-mitica::after, .tile.r-divina::after,
+.title-modal.r-mitica .flip-front::after, .title-modal.r-divina .flip-front::after {
   content: '';
   position: absolute;
+  z-index: 4;
   inset: -3px;
   border-radius: inherit;
   pointer-events: none;
@@ -376,6 +384,19 @@ main { max-width: 1240px; margin: 0 auto; padding: 8px 16px 40px; }
   mask-composite: exclude;
   animation: spinHue 3s linear infinite;
 }
+.tile.r-divina::after, .title-modal.r-divina .flip-front::after {
+  background: conic-gradient(from var(--ang, 0deg), #fff3b0, #ffffff, #ffd23c, #ffffff, #fff3b0);
+  animation: none;
+}
+.tile.r-divina, .title-modal.r-divina .flip-front { box-shadow: 0 0 24px #fff3b0, 0 0 60px #ffd23c88, 0 10px 22px #0008; }
+.tile.r-bodrio img { filter: saturate(0.6) sepia(0.25); }
+
+/* Sellos: pegatinas en la esquina superior derecha de la carta */
+.tile-sellos { position: absolute; z-index: 3; top: 30px; right: 6px; display: flex; flex-direction: column; gap: 3px; }
+.sello { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #000c; font-size: 0.72rem; box-shadow: 0 0 0 1px #fff3; }
+.tm-sellos { display: inline-flex; gap: 4px; align-items: center; }
+.tm-sellos .sello { width: 30px; height: 30px; font-size: 1rem; cursor: help; }
+.history .tile-sellos, .case-item .tile-sellos, .album-slot .tile-sellos { display: none; }
 @keyframes holo { 0% { background-position: 0% 0%; } 100% { background-position: 250% 250%; } }
 .tile-actions { position: absolute; z-index: 3; bottom: 8px; right: 8px; display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
 .tile:hover .tile-actions, .tile:focus-within .tile-actions { opacity: 1; }
@@ -993,7 +1014,8 @@ main { max-width: 1240px; margin: 0 auto; padding: 8px 16px 40px; }
 .box-card:hover .box-icon { animation: chestShake 0.15s infinite; }
 .box-card h3 { margin: 0; font-family: var(--display); color: var(--c); }
 .odds { display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; text-align: left; flex: 1; }
-.odd { display: grid; grid-template-columns: 74px 1fr 34px; align-items: center; gap: 6px; }
+.odd { display: grid; grid-template-columns: 112px 1fr 38px; align-items: center; gap: 6px; }
+.odd span { white-space: nowrap; }
 .odd i { height: 7px; border-radius: 99px; background: var(--rc); box-shadow: 0 0 8px var(--rc); }
 .odd b { text-align: right; }
 
@@ -1049,6 +1071,34 @@ main { max-width: 1240px; margin: 0 auto; padding: 8px 16px 40px; }
 @keyframes landed { from { transform: scale(1.4) rotate(6deg); } }
 #picker-title { font-family: var(--display); text-align: center; font-size: clamp(1.2rem, 4vw, 2rem); margin: 0; }
 #picker-title.landed { color: var(--gold); text-shadow: 0 0 20px var(--gold); animation: headlineIn 0.6s; }
+
+/* Copias, Taller y Álbum de artes */
+.copies { position: absolute; z-index: 3; top: 30px; left: 6px; padding: 2px 7px; border-radius: 8px; font-size: 0.72rem; font-weight: 800; background: #000c; color: var(--cyan); }
+.mini.ready { background: var(--green); color: #002812; box-shadow: 0 0 12px var(--green); }
+.taller { text-align: center; }
+.taller h2 { font-family: var(--display); margin: 0 0 6px; }
+.taller-preview { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; margin: 18px 0; }
+.taller-preview > .tile { width: 150px; }
+.taller-arrow { font-size: 2rem; color: var(--gold); }
+.taller-opts { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.taller-opt { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+.taller-opt .tile { width: 110px; }
+.taller-opt input { position: absolute; opacity: 0; }
+.taller-opt:has(input:checked) .tile { outline: 3px solid var(--gold); outline-offset: 3px; }
+.taller-opt:has(input:focus-visible) .tile { outline: 3px solid var(--cyan); outline-offset: 3px; }
+.taller-pay { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+.album { margin-top: 40px; }
+.album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; }
+.album-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px; border-radius: 16px; border: 2px dashed var(--line); background: #ffffff06; cursor: pointer; font-size: 0.8rem; text-align: center; }
+.album-slot.got { border-style: solid; border-color: var(--gold); background: #ffc93c10; }
+.album-slot .tile { width: 100%; }
+.album-slot small { color: var(--muted); font-size: 0.7rem; }
+.album-empty { width: 100%; aspect-ratio: 2 / 3; display: grid; place-items: center; font-size: 2.4rem; border-radius: 12px; background: #0006; filter: grayscale(1) opacity(0.4); }
+.box-luck { margin: 0; font-size: 0.8rem; font-weight: 800; color: var(--gold); }
+.arte-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 18px; }
+.arte-item { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; padding: 10px 14px; border-radius: 14px; background: #ffffff08; border: 1px solid var(--line); }
+.arte-item span { grid-row: span 2; font-size: 1.8rem; }
+.arte-item small { color: var(--muted); font-size: 0.78rem; }
 
 /* ============ LOGROS ============ */
 .logros-progress { display: flex; align-items: center; gap: 14px; max-width: 600px; margin: 16px auto 24px; }
@@ -1351,7 +1401,7 @@ textarea { resize: vertical; }
 .more-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 18px; }
 .more-games div { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 16px; background: #ffffff08; border: 1px solid var(--line); }
 .more-games span { color: var(--muted); font-size: 0.9rem; }
-.rarity-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-top: 18px; }
+.rarity-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 16px; margin-top: 18px; }
 .rarity-sample { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
 .rarity-sample .tile { width: 100%; max-width: 150px; cursor: default; }
 .rarity-sample b { font-family: var(--display); }
@@ -1384,13 +1434,12 @@ textarea { resize: vertical; }
   .land-ctas { justify-content: center; }
   .poster-fan { --step: 48px; --card: 140px; height: 320px; }
   .demos { grid-template-columns: 1fr; }
-  .rarity-row { grid-template-columns: repeat(3, 1fr); }
   .acc-hero-actions { margin-left: 0; }
 }
 @media (max-width: 640px) {
   .page-top .hud { justify-content: center; }
   .cookie-banner { bottom: 48px; padding: 14px; }
-  .rarity-row { grid-template-columns: repeat(2, 1fr); }
+  .rarity-row { grid-template-columns: repeat(3, 1fr); }
   .admin-grid { grid-template-columns: 1fr; }
 }
 

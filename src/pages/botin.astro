@@ -1,5 +1,8 @@
 ---
 import Casino from '../layouts/Casino.astro';
+import { RARITIES, RARITY } from '../lib/rarity';
+import { SELLOS, type SelloId } from '../lib/sellos';
+import { ARTE_IDS, ARTES } from '../lib/arts';
 ---
 
 <Casino title="Mi Botín" active="botin">
@@ -25,22 +28,34 @@ import Casino from '../layouts/Casino.astro';
       </div>
       <div class="chips" data-group="rarity">
         <button class="chip active" data-v="all">Todas</button>
-        <button class="chip" data-v="comun">⚪</button>
-        <button class="chip" data-v="rara">🔵</button>
-        <button class="chip" data-v="epica">🟣</button>
-        <button class="chip" data-v="legendaria">🟠</button>
-        <button class="chip" data-v="mitica">🌈</button>
-        <button class="chip" data-v="upcoming" title="Próximamente">🔮</button>
+        {RARITIES.map((r) => <button class="chip" data-v={r} title={RARITY[r].label} aria-label={RARITY[r].label}>{RARITY[r].emoji}</button>)}
+        <button class="chip" data-v="upcoming" title="Próximamente" aria-label="Próximamente">🔮</button>
       </div>
-      <select id="sort" class="select">
+      <select id="f-sello" class="select" aria-label="Sello">
+        <option value="all">Todos los sellos</option>
+        {(Object.keys(SELLOS) as SelloId[]).map((id) => <option value={id}>{SELLOS[id].emoji} {SELLOS[id].label}</option>)}
+      </select>
+      <select id="f-arte" class="select" aria-label="Arte">
+        <option value="all">Todos los artes</option>
+        <option value="special">🎨 Solo especiales</option>
+        {ARTE_IDS.map((a) => <option value={a}>{ARTES[a].emoji} {ARTES[a].label}</option>)}
+      </select>
+      <select id="sort" class="select" aria-label="Orden">
         <option value="recent">Más recientes</option>
         <option value="vote">Mejor nota</option>
         <option value="rarity">Rareza</option>
+        <option value="arte">Arte</option>
         <option value="title">A-Z</option>
       </select>
     </div>
 
     <div class="grid" id="grid"></div>
+
+    <section class="album">
+      <h2 class="section-title">🎨 Álbum de artes</h2>
+      <p class="muted small">Un hueco por arte. Los especiales salen al ganar (más con apuestas altas y cajas caras) o se consiguen en el 🛠️ Taller de cada carta, con 3 copias repetidas o con fichas.</p>
+      <div class="album-grid" id="album"></div>
+    </section>
 
     <details class="data-tools">
       <summary>⚙️ Copia de seguridad</summary>
@@ -59,13 +74,16 @@ import Casino from '../layouts/Casino.astro';
 </Casino>
 
 <script>
-  import { exportData, getState, importData, markSeen, removeFromBotin, resetAll, type Saved } from '../lib/store';
-  import { fromSaved, showTitle, tileHTML } from '../lib/card';
+  import { exportData, getState, importData, markSeen, removeFromBotin, resetAll, savedOf, upgradeArte, type Saved } from '../lib/store';
+  import { fromSaved, openModal, closeModal, savedTileHTML, showTitle } from '../lib/card';
   import { img } from '../lib/tmdb';
   import { RARITIES, RARITY, rarityRank, STATUS, statusOf } from '../lib/rarity';
+  import { sellosOf } from '../lib/sellos';
+  import { ARTE_IDS, ARTES, isSpecial, TALLER_COINS, TALLER_COPIES, upgradesFrom, type Arte } from '../lib/arts';
+  import { isEventActive } from '../lib/events';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
-  import { esc, pick, sleep } from '../lib/util';
+  import { esc, fmt, pick, sleep } from '../lib/util';
   import { u } from '../site';
 
   const filters = { status: 'all', type: 'all', rarity: 'all' };
@@ -73,22 +91,51 @@ import Casino from '../layouts/Casino.astro';
   /** Categoría para filtros y resumen: rareza, o "upcoming"/"unrated" si aún no tiene nota fiable. */
   const cat = (b: Saved): string => (statusOf(b) === 'rated' ? b.rarity : statusOf(b));
   const isUpcoming = (b: Saved) => statusOf(b) === 'upcoming';
+  const sellosDe = (b: Saved) => sellosOf({ ...b, popularity: b.pop });
+  const arteDe = (b: Saved): Arte => b.arte ?? 'normal';
+  /** Orden de los artes para ordenar: los "solo por suerte" arriba del todo. */
+  const arteScore = (a: Arte) => ARTES[a].tier ?? 10 + ARTES[a].weight ** -1;
   const grid = document.getElementById('grid')!;
   const sortSel = document.getElementById('sort') as HTMLSelectElement;
+  const selloSel = document.getElementById('f-sello') as HTMLSelectElement;
+  const arteSel = document.getElementById('f-arte') as HTMLSelectElement;
 
   function visible(): Saved[] {
     const s = getState();
+    const sello = selloSel.value;
+    const arte = arteSel.value;
     let list = s.botin.filter(
       (b) =>
         (filters.status === 'all' || (filters.status === 'seen' ? b.seen : !b.seen)) &&
         (filters.type === 'all' || b.type === filters.type) &&
-        (filters.rarity === 'all' || cat(b) === filters.rarity),
+        (filters.rarity === 'all' || cat(b) === filters.rarity) &&
+        (sello === 'all' || sellosDe(b).includes(sello as never)) &&
+        (arte === 'all' || (arte === 'special' ? isSpecial(b.arte) : arteDe(b) === arte)),
     );
     const sort = sortSel.value;
     if (sort === 'vote') list = [...list].sort((a, b) => b.vote - a.vote);
     if (sort === 'rarity') list = [...list].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || b.vote - a.vote);
+    if (sort === 'arte') list = [...list].sort((a, b) => arteScore(arteDe(b)) - arteScore(arteDe(a)) || rarityRank(b.rarity) - rarityRank(a.rarity));
     if (sort === 'title') list = [...list].sort((a, b) => a.title.localeCompare(b.title, 'es'));
     return list;
+  }
+
+  /** Huecos del álbum: cuántas cartas tienes de cada arte y una de muestra (la de mejor rareza). */
+  function renderAlbum() {
+    const s = getState();
+    const ev = isEventActive('halloween');
+    document.getElementById('album')!.innerHTML = ARTE_IDS.filter((a) => a !== 'normal')
+      .filter((a) => !ARTES[a].event || ev || s.botin.some((b) => b.arte === a))
+      .map((a) => {
+        const mine = s.botin.filter((b) => b.arte === a).sort((x, y) => rarityRank(y.rarity) - rarityRank(x.rarity));
+        const info = ARTES[a];
+        return `<button class="album-slot${mine.length ? ' got' : ''}" data-arte="${a}" title="${esc(info.desc)}">
+          ${mine.length ? savedTileHTML(mine[0], { open: false, size: 'w185', sellos: false }) : `<div class="album-empty">${info.emoji}</div>`}
+          <b>${info.emoji} ${info.label}</b>
+          <small>${mine.length ? `${mine.length} carta${mine.length > 1 ? 's' : ''}` : info.tier === null ? 'Solo por suerte' : 'Por descubrir'}</small>
+        </button>`;
+      })
+      .join('');
   }
 
   function render() {
@@ -111,6 +158,7 @@ import Casino from '../layouts/Casino.astro';
         })
         .join('')}</div>`;
 
+    renderAlbum();
     const list = visible();
     if (!list.length) {
       grid.innerHTML = total
@@ -119,17 +167,61 @@ import Casino from '../layouts/Casino.astro';
       return;
     }
     grid.innerHTML = list
-      .map((b) =>
-        tileHTML(fromSaved(b), {
+      .map((b) => {
+        const canForge = upgradesFrom(b.arte).length > 0;
+        return savedTileHTML(b, {
           cls: b.seen ? 'is-seen' : '',
           extra: `${b.seen ? '<span class="seen-stamp">VISTA</span>' : ''}
+            ${b.copies ? `<span class="copies" title="Copias para el Taller">🧩${b.copies}</span>` : ''}
             <div class="tile-actions" data-noopen>
               ${b.seen || isUpcoming(b) ? '' : `<button class="mini" data-act="seen" data-key="${b.key}" title="Marcar como vista">👁️</button>`}
+              ${canForge ? `<button class="mini${(b.copies ?? 0) >= TALLER_COPIES ? ' ready' : ''}" data-act="forge" data-key="${b.key}" title="Taller: mejorar el arte">🛠️</button>` : ''}
               <button class="mini" data-act="remove" data-key="${b.key}" title="Quitar del botín">🗑️</button>
             </div>`,
-        }),
-      )
+        });
+      })
       .join('');
+  }
+
+  // ---------- Taller ----------
+  function openTaller(key: string) {
+    const b = savedOf(key);
+    if (!b) return;
+    const from = arteDe(b);
+    const options = upgradesFrom(from);
+    if (!options.length) return;
+    const copies = b.copies ?? 0;
+    const cost = TALLER_COINS[ARTES[options[0]].tier!];
+    const inner = openModal(`
+      <div class="taller">
+        <h2 class="neon-gold">🛠️ TALLER</h2>
+        <p class="muted">Mejora el arte de <b>${esc(b.title)}</b> un escalón: ${ARTES[from].emoji} ${ARTES[from].label} → ${options.length > 1 ? 'elige uno' : `${ARTES[options[0]].emoji} ${ARTES[options[0]].label}`}.</p>
+        <div class="taller-preview">${savedTileHTML(b, { open: false, sellos: false })}<span class="taller-arrow">➜</span><div class="taller-opts">
+          ${options
+            .map(
+              (a, i) =>
+                `<label class="taller-opt"><input type="radio" name="to" value="${a}" ${i === 0 ? 'checked' : ''}>${savedTileHTML({ ...b, arte: a }, { open: false, size: 'w185', sellos: false })}<span>${ARTES[a].emoji} ${ARTES[a].label}</span></label>`,
+            )
+            .join('')}
+        </div></div>
+        <div class="taller-pay">
+          <button class="btn btn-green" data-pay="copies" ${copies >= TALLER_COPIES ? '' : 'disabled'}>🧩 Usar ${TALLER_COPIES} copias <small>(tienes ${copies})</small></button>
+          <button class="btn btn-gold" data-pay="coins">🪙 Pagar ${fmt(cost)} fichas</button>
+        </div>
+        <p class="muted small">Las copias salen cuando te toca un título que ya tenías. Glitch, Lenticular, Firmada y Billete dorado no se fabrican: solo salen por suerte.</p>
+      </div>`);
+    inner.querySelector('.taller-pay')!.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-pay]');
+      if (!btn) return;
+      const to = (inner.querySelector('input[name="to"]:checked') as HTMLInputElement).value as Arte;
+      if (!upgradeArte(key, to, btn.dataset.pay as 'copies' | 'coins')) return;
+      sfx.jackpot();
+      fx.rarityBurst(b.rarity);
+      fx.toast(`<b>${esc(b.title)}</b> ahora es ${ARTES[to].emoji} <b>${ARTES[to].label}</b>.`, { icon: '🛠️', color: 'var(--gold)' });
+      closeModal();
+      const now = savedOf(key);
+      if (now) showTitle(fromSaved(now), { headline: `🛠️ Recién salida del Taller: ${ARTES[to].label}` });
+    });
   }
 
   grid.addEventListener('click', (e) => {
@@ -143,10 +235,21 @@ import Casino from '../layouts/Casino.astro';
       sfx.coins(5);
       fx.floatFrom(btn, `+${coins} 🪙`, 'pos');
       fx.coinRain(12);
+    } else if (btn.dataset.act === 'forge') {
+      openTaller(item.key);
     } else if (confirm(`¿Quitar "${item.title}" del botín?`)) {
       removeFromBotin(item.key);
       sfx.lose();
     }
+  });
+
+  // Pulsar un hueco del álbum filtra la rejilla por ese arte
+  document.getElementById('album')!.addEventListener('click', (e) => {
+    const slot = (e.target as HTMLElement).closest<HTMLElement>('[data-arte]');
+    if (!slot) return;
+    arteSel.value = slot.dataset.arte!;
+    render();
+    grid.scrollIntoView({ behavior: fx.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
   });
 
   document.getElementById('filters')!.addEventListener('click', (e) => {
@@ -157,7 +260,7 @@ import Casino from '../layouts/Casino.astro';
     chip.parentElement!.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', c === chip));
     render();
   });
-  sortSel.addEventListener('change', render);
+  [sortSel, selloSel, arteSel].forEach((s) => s.addEventListener('change', render));
   window.addEventListener('casino:change', render);
 
   // ¿Qué veo hoy? Tragaperras de un solo rodillo con tus pendientes

@@ -60,6 +60,18 @@ window.addEventListener('casino:achievement', (e) => {
   fx.toast(`<b>¡Logro desbloqueado!</b><br>${esc(a.name)} · <span class="gold">+${fmt(a.reward)} 🪙</span>`, { icon: a.icon, color: 'var(--gold)', ms: 5000 });
 });
 
+window.addEventListener('casino:copy', (e) => {
+  const { title, copies } = (e as CustomEvent).detail;
+  fx.toast(`Ya tenías <b>${esc(title)}</b>: +1 copia (${copies}). Úsalas en el 🛠️ Taller de Mi Botín.`, { icon: '🧩' });
+});
+
+window.addEventListener('casino:golden-ticket', (e) => {
+  const { coins } = (e as CustomEvent).detail;
+  sfx.jackpot();
+  fx.coinRain(90);
+  fx.banner('¡BILLETE DORADO!', `+${fmt(coins)} fichas`, 'var(--gold)', 2600);
+});
+
 window.addEventListener('casino:broke', (e) => {
   const need = (e as CustomEvent).detail.need;
   sfx.error();

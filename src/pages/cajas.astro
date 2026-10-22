@@ -1,6 +1,6 @@
 ---
 import Casino from '../layouts/Casino.astro';
-import { BOXES } from '../lib/boxes';
+import { BOXES, BOX_VALUE, odd } from '../lib/boxes';
 import { RARITIES, RARITY } from '../lib/rarity';
 ---
 
@@ -20,14 +20,15 @@ import { RARITIES, RARITY } from '../lib/rarity';
           <div class="box-icon">{b.icon}</div>
           <h3>{b.name}</h3>
           <div class="odds">
-            {RARITIES.filter((r) => b.odds[r] > 0).map((r) => (
+            {RARITIES.filter((r) => odd(b, r) > 0).map((r) => (
               <div class="odd" style={`--rc:${RARITY[r].color}`}>
-                <span>{RARITY[r].label}</span>
-                <i style={`width:${b.odds[r]}%`} />
-                <b>{b.odds[r]}%</b>
+                <span>{RARITY[r].emoji} {RARITY[r].label}</span>
+                <i style={`width:${Math.max(3, odd(b, r) * 2)}%`} />
+                <b>{String(odd(b, r)).replace('.', ',')}%</b>
               </div>
             ))}
           </div>
+          {b.luck > 1 && <p class="box-luck">🎨 Arte especial ×{String(b.luck).replace('.', ',')}</p>}
           <button class="btn btn-gold open-box" data-box={b.id}>
             ABRIR · {b.price} 🪙
           </button>
@@ -35,19 +36,22 @@ import { RARITIES, RARITY } from '../lib/rarity';
       ))
     }
   </section>
-  <p class="muted small center">Valor en fichas por rareza: Común 10 · Rara 30 · Épica 80 · Legendaria 250 · Mítica 600. Duplicados: +50% del precio de la caja.</p>
+  <p class="muted small center">
+    Valor en fichas por rareza: {RARITIES.map((r) => `${RARITY[r].label} ${BOX_VALUE[r]}`).join(' · ')}. Repetidos: +50 % del precio de la caja y una copia para el Taller.
+  </p>
 </Casino>
 
 <script>
-  import { spend, earn, stat, inBotin, addToBotin, getState } from '../lib/store';
+  import { spend, earn, stat, inBotin, getState } from '../lib/store';
   import { img, randomDiscover, topRated, typesForMode, type Title } from '../lib/tmdb';
-  import { showTitle, tileHTML } from '../lib/card';
-  import { BOXES, BOX_VALUE, type Box } from '../lib/boxes';
+  import { collect, showTitle, tileHTML } from '../lib/card';
+  import { BOXES, BOX_VALUE, odd, type Box } from '../lib/boxes';
+  import { ARTES, isSpecial, rollArte } from '../lib/arts';
   import { isEventActive } from '../lib/events';
-  import { rarityOf, rarityRank, RARITIES, RARITY, type Rarity } from '../lib/rarity';
+  import { atLeast, rarityOf, rarityRank, RARITIES, RARITY, type Rarity } from '../lib/rarity';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
-  import { fmt, pick, preload, rand, randInt, sleep, weighted } from '../lib/util';
+  import { esc, fmt, pick, preload, rand, randInt, sleep, weighted } from '../lib/util';
 
   const ITEMS = 60;
   const WIN = 52;
@@ -84,6 +88,10 @@ import { RARITIES, RARITY } from '../lib/rarity';
       // top_rated no filtra por género: para las cajas de un género se pide a discover ordenado por nota
       genres ? randomDiscover(t, { genres, sort: 'vote_average.desc', minVotes: 500 }, 3) : topRated(t, randInt(1, 12)),
       genres ? randomDiscover(t, { genres, sort: 'vote_average.desc', minVotes: 1500 }, 2) : topRated(t, randInt(1, 4)),
+      // Las rarezas de los extremos: Divinas (lo más alto de top_rated), Reliquias (antes de 1970) y Bodrios
+      ...(genres ? [] : [topRated(t, randInt(1, 2))]),
+      randomDiscover(t, { genres, sort: 'vote_average.desc', minVotes: 300, maxYear: 1969 }, 3),
+      randomDiscover(t, { genres, maxVote: 4.5, minVotes: 80 }, 5),
     ]);
     const res = await Promise.allSettled(jobs);
     const key = deckKey(box);
@@ -104,10 +112,11 @@ import { RARITIES, RARITY } from '../lib/rarity';
     pool = decks.get(deckKey(box))?.list ?? [];
   }
 
-  const ofRarity = (r: Rarity) => pool.filter((t) => rarityOf(t.vote, t.votes) === r);
+  const ofRarity = (r: Rarity) => pool.filter((t) => rarityOf(t) === r);
 
   function pickWinner(r: Rarity): Title | null {
-    const order = [0, -1, 1, -2, 2, -3, 3, -4, 4];
+    // Si no hay de esa rareza en el mazo, la más cercana (primero por debajo)
+    const order = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8];
     for (const d of order) {
       const rr = RARITIES[rarityRank(r) + d];
       if (!rr) continue;
@@ -119,9 +128,9 @@ import { RARITIES, RARITY } from '../lib/rarity';
     return null;
   }
 
-  function filler(odds: Record<Rarity, number>): Title {
+  function filler(box: Box): Title {
     // Se enseñan más rarezas altas de las que tocan de verdad. Así funciona el gancho.
-    const r = weighted(RARITIES, (x) => odds[x] + (rarityRank(x) >= 3 ? 6 : 2));
+    const r = weighted(RARITIES, (x) => odd(box, x) + (atLeast(x, 'legendaria') ? 6 : 2));
     const list = ofRarity(r);
     return list.length ? pick(list) : pick(pool);
   }
@@ -144,7 +153,7 @@ import { RARITIES, RARITY } from '../lib/rarity';
 
     await usePool(box);
     status.innerHTML = `${box.icon} Abriendo <b>${box.name}</b>…`;
-    const rolled = weighted(RARITIES, (r) => box.odds[r]);
+    const rolled = weighted(RARITIES, (r) => odd(box, r));
     const winner = pickWinner(rolled);
     if (!winner) {
       fx.toast('No se pudo cargar TMDB. Te devolvemos las fichas.', { icon: '📡' });
@@ -152,28 +161,31 @@ import { RARITIES, RARITY } from '../lib/rarity';
       done();
       return;
     }
-    const wr = rarityOf(winner.vote, winner.votes);
+    const wr = rarityOf(winner);
+    const arte = rollArte(box.luck);
     const dup = inBotin(winner.key);
     const value = BOX_VALUE[wr] + (dup ? Math.round(box.price * 0.5) : 0);
-    // Si sales de la página a mitad de la animación, el premio se cobra igual
+    // Si sales de la página a mitad de la animación, el premio se cobra igual (repetido = copia para el Taller)
     pendingAward = () => {
       pendingAward = null;
       earn(value);
-      if (!dup) addToBotin(winner);
+      collect(winner, arte);
     };
 
     // El cartel ganador, descargado antes de rodar: si no, en conexiones lentas se para en un hueco
     await preload(img(winner.poster, 'w185'));
 
-    const items: Title[] = Array.from({ length: ITEMS }, () => filler(box.odds));
+    const items: Title[] = Array.from({ length: ITEMS }, () => filler(box));
     items[WIN] = winner;
-    // Casi-casi: un mítico/legendario justo al lado del premio
-    if (rarityRank(wr) < 3 && Math.random() < 0.65) {
-      const tease = ofRarity('mitica').concat(ofRarity('legendaria')).filter((t) => t.key !== winner.key);
+    // Casi-casi: algo de lo más alto justo al lado del premio
+    if (!atLeast(wr, 'legendaria') && Math.random() < 0.65) {
+      const tease = ['divina', 'mitica', 'legendaria'].flatMap((r) => ofRarity(r as Rarity)).filter((t) => t.key !== winner.key);
       if (tease.length) items[WIN + (Math.random() < 0.5 ? 1 : -1)] = pick(tease);
     }
     strip.classList.remove('idle');
-    strip.innerHTML = items.map((t, i) => `<div class="case-item" data-i="${i}">${tileHTML(t, { open: false, size: 'w185' })}</div>`).join('');
+    strip.innerHTML = items
+      .map((t, i) => `<div class="case-item" data-i="${i}">${tileHTML(t, { open: false, size: 'w185', sellos: false, arte: i === WIN ? arte : undefined })}</div>`)
+      .join('');
     strip.style.transition = 'none';
     strip.style.transform = 'translateX(0)';
     void strip.offsetWidth;
@@ -208,17 +220,18 @@ import { RARITIES, RARITY } from '../lib/rarity';
     wonEl.classList.add('won');
     fx.rarityBurst(wr);
     sfx.reveal();
-    if (rarityRank(wr) >= 3) {
+    if (atLeast(wr, 'legendaria')) {
       sfx.jackpot();
       fx.shake('lg');
     } else sfx.win();
 
     pendingAward?.();
-    status.innerHTML = `${RARITY[wr].emoji} <b style="color:${RARITY[wr].color}">${RARITY[wr].label}</b> · ${winner.title} · +${fmt(value)} 🪙${dup ? ' (¡duplicado!)' : ''}`;
-    if (rarityRank(wr) >= 3) await fx.banner(RARITY[wr].label.toUpperCase(), winner.title, RARITY[wr].color, 1800);
+    const arteTxt = isSpecial(arte) ? ` · ${ARTES[arte].emoji} Arte ${ARTES[arte].label}` : '';
+    status.innerHTML = `${RARITY[wr].emoji} <b style="color:${RARITY[wr].color}">${RARITY[wr].label}</b> · ${esc(winner.title)}${arteTxt} · +${fmt(value)} 🪙${dup ? ' (repetida: +1 copia)' : ''}`;
+    if (atLeast(wr, 'legendaria')) await fx.banner(RARITY[wr].label.toUpperCase(), esc(winner.title), RARITY[wr].color, 1800);
     else await sleep(700);
 
-    showTitle(winner, { headline: `${box.icon} ${box.name}: ¡${RARITY[wr].label}!${dup ? ' · Duplicado' : ''}` });
+    showTitle(winner, { headline: `${box.icon} ${box.name}: ¡${RARITY[wr].label}!${dup ? ' · Repetida' : ''}`, arte: dup ? undefined : arte });
     const deck = decks.get(deckKey(box));
     if (deck) deck.list = deck.list.filter((t) => t.key !== winner.key);
     done();
@@ -238,7 +251,7 @@ import { RARITIES, RARITY } from '../lib/rarity';
     .then(() => {
       if (opening || !pool.length) return;
       status.innerHTML = 'Elige una caja. Cada título que toque va directo a tu botín. 🎁';
-      strip.innerHTML = Array.from({ length: 14 }, () => `<div class="case-item">${tileHTML(pick(pool), { open: false, size: 'w185' })}</div>`).join('');
+      strip.innerHTML = Array.from({ length: 14 }, () => `<div class="case-item">${tileHTML(pick(pool), { open: false, size: 'w185', sellos: false })}</div>`).join('');
       strip.classList.add('idle');
     })
     .catch(() => {});

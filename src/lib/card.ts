@@ -1,6 +1,8 @@
 import { details, img, type Details, type Title } from './tmdb';
-import { rarityOf, rarityRank, RARITY, STATUS, statusOf } from './rarity';
-import { addToBotin, getState, inBotin, isSeen, markSeen, type Saved } from './store';
+import { atLeast, rarityOf, RARITY, STATUS, statusOf } from './rarity';
+import { addToBotin, getState, inBotin, isSeen, markSeen, patchSaved, savedOf, type Saved } from './store';
+import { ARTES, arteBadge, arteRender, isSpecial, rollArte, type Arte } from './arts';
+import { detailSellos, selloHTML, sellosOf } from './sellos';
 import { regionName } from './region';
 import { sfx } from './sfx';
 import * as fx from './fx';
@@ -25,13 +27,14 @@ export function fromSaved(s: Saved): Title {
     original: '',
     overview: '',
     poster: s.poster,
-    backdrop: null,
+    backdrop: s.backdrop ?? null,
     vote: s.vote,
     votes: s.votes,
     year: s.year,
     date: s.date,
     genres: s.genres ?? [],
-    popularity: 0,
+    popularity: s.pop ?? 0,
+    lang: s.lang,
   };
 }
 
@@ -40,24 +43,44 @@ const longDate = (d: string) => new Date(`${d}T00:00`).toLocaleDateString('es-ES
 /** Clase de marco y texto de la nota según si está valorado, sin valorar o por estrenar. */
 function look(t: Title) {
   const st = statusOf(t);
-  const r = rarityOf(t.vote, t.votes);
-  if (st === 'rated') return { st, r, cls: `r-${r}${rarityRank(r) >= 2 ? ' holo' : ''}`, rating: `⭐ ${t.vote.toFixed(1)}` };
+  const r = rarityOf(t);
+  if (st === 'rated') return { st, r, cls: `r-${r}`, rating: `⭐ ${t.vote.toFixed(1)}` };
   return { st, r, cls: STATUS[st].cls, rating: st === 'upcoming' ? `🔮 ${t.year || 'Pronto'}` : '❔ s/n' };
 }
 
-export function tileHTML(t: Title, o: { extra?: string; cls?: string; open?: boolean; size?: string } = {}): string {
+export interface TileOpts {
+  extra?: string;
+  cls?: string;
+  open?: boolean;
+  size?: string;
+  /** Arte de la carta (las guardadas o los premios ya sorteados). */
+  arte?: Arte;
+  sig?: string;
+  /** false = sin pegatinas de sellos (tiras de las cajas, demos). */
+  sellos?: boolean;
+}
+
+export function tileHTML(t: Title, o: TileOpts = {}): string {
   register(t);
   const L = look(t);
   const open = o.open === false ? '' : ` data-title-key="${t.key}" role="button" tabindex="0"`;
-  return `<div class="tile ${L.cls} ${o.cls ?? ''}"${open} title="${esc(t.title)}">
-    <img loading="lazy" decoding="async" src="${img(t.poster, o.size ?? 'w342')}" alt="">
+  const base = img(t.poster, o.size ?? 'w342');
+  const A = arteRender(o.arte, { img: base, backdrop: t.backdrop, sig: o.sig });
+  const sellos = o.sellos === false ? [] : sellosOf(t);
+  return `<div class="tile ${L.cls} ${A.cls} ${o.cls ?? ''}"${open} title="${esc(t.title)}${isSpecial(o.arte) ? ` · Arte ${ARTES[o.arte!].label}` : ''}">
+    <img loading="lazy" decoding="async" src="${A.size ? img(t.poster, A.size) : base}" alt="">
+    ${A.extra}
     ${L.st === 'upcoming' ? '<span class="soon-ribbon">PRÓXIMAMENTE</span>' : ''}
     <span class="tile-rating">${L.rating}</span>
     <span class="tile-type">${t.type === 'movie' ? '🎬' : '📺'}</span>
+    ${sellos.length ? `<span class="tile-sellos">${selloHTML(sellos)}</span>` : ''}
     <span class="tile-title">${esc(t.title)}</span>
     ${o.extra ?? ''}
   </div>`;
 }
+
+/** Póster de una carta del botín, con su arte y su firma. */
+export const savedTileHTML = (s: Saved, o: TileOpts = {}) => tileHTML(fromSaved(s), { arte: s.arte, sig: s.sig, ...o });
 
 const dlg = () => document.getElementById('modal') as HTMLDialogElement;
 
@@ -87,19 +110,49 @@ function provRow(label: string, list: Details['providers']['flatrate']) {
     .join('')}</div>`;
 }
 
-// Premios pendientes de cobrar en esta visita: solo estos títulos se pueden meter en el botín.
-// Abrir un póster cualquiera (ticker, tendencias, landing…) es solo mirar, no coleccionar.
-const claimable = new Set<string>();
-export const grantClaim = (t: Title) => claimable.add(register(t).key);
+// Premios pendientes de cobrar en esta visita, con el arte que les ha tocado: solo estos títulos se
+// pueden meter en el botín. Abrir un póster cualquiera (ticker, tendencias, landing…) es solo mirar.
+const claimable = new Map<string, Arte>();
+
+/** Marca un título como premio y le sortea el arte (una sola vez: repetir no vuelve a sortear). */
+export function grantClaim(t: Title, luck = 1): Arte {
+  register(t);
+  let a = claimable.get(t.key);
+  if (!a) claimable.set(t.key, (a = rollArte(luck)));
+  return a;
+}
 export const canClaim = (key: string) => claimable.has(key);
 
-export async function showTitle(t: Title, o: { headline?: string; reveal?: boolean; prize?: boolean } = {}): Promise<void> {
+/** La firma del arte Firmada es quien la dirigió (o creó la serie): llega con la ficha. */
+async function sign(t: Title) {
+  try {
+    const name = (await details(t.type, t.id)).director.split(',')[0]?.trim();
+    if (name) patchSaved(t.key, { sig: name });
+  } catch {}
+}
+
+/** Guarda un título ganado con su arte (o suma una copia si ya lo tenías). Devuelve la XP. */
+export function collect(t: Title, arte: Arte): number {
+  const xp = addToBotin(t, arte);
+  if (xp && arte === 'firmada') sign(t);
+  return xp;
+}
+
+export async function showTitle(
+  t: Title,
+  o: { headline?: string; reveal?: boolean; prize?: boolean; luck?: number; arte?: Arte } = {},
+): Promise<void> {
   register(t);
-  if (o.prize) grantClaim(t);
+  if (o.prize) grantClaim(t, o.luck);
   const { st, r, cls } = look(t);
   const R = RARITY[r];
   const badge = st === 'rated' ? R : STATUS[st];
-  const fancy = st === 'rated' && rarityRank(r) >= 2;
+  const saved = savedOf(t.key);
+  // El arte que se enseña: el que se pide, el del premio pendiente o el de tu carta guardada
+  const arte: Arte = o.arte ?? claimable.get(t.key) ?? saved?.arte ?? 'normal';
+  const A = arteRender(arte, { img: img(t.poster, 'w500'), backdrop: t.backdrop ?? saved?.backdrop, sig: saved?.sig });
+  const fancy = (st === 'rated' && atLeast(r, 'epica')) || isSpecial(arte);
+  const sellos = sellosOf(t);
   const score =
     st === 'rated'
       ? `<span class="stars" style="--p:${t.vote * 10}%">★★★★★</span><b>${t.vote.toFixed(1)}</b><small>${fmt(t.votes)} votos</small>`
@@ -107,19 +160,22 @@ export async function showTitle(t: Title, o: { headline?: string; reveal?: boole
         ? `<span class="tm-soon">🔮 ${t.date ? `Se estrena el ${longDate(t.date)}` : 'Sin fecha de estreno'} · aún sin nota</span>`
         : `<span class="tm-soon">❔ Todavía sin valoraciones suficientes (${fmt(t.votes)} votos)</span>`;
   const inner = openModal(
-    `<div class="title-modal ${cls.replace(' holo', '')}">
+    `<div class="title-modal ${cls}">
       ${o.headline ? `<div class="tm-headline">${o.headline}</div>` : ''}
       <div class="tm-grid">
         <div class="flip${o.reveal ? '' : ' flipped'}">
           <div class="flip-inner">
             <div class="flip-back"><span>🎰</span><b>${esc(SITE.logo.join(' '))}</b></div>
-            <div class="flip-front${fancy ? ' holo' : ''}"><img src="${img(t.poster, 'w500')}" alt=""></div>
+            <div class="flip-front ${A.cls}"><img src="${img(t.poster, A.size ?? 'w500')}" alt="">${A.extra}</div>
           </div>
           <div class="rarity-stamp">${badge.label}</div>
         </div>
         <div class="tm-info">
-          <div class="tm-badges">
+          <div class="tm-badges" data-f="badges">
             <span class="rarity-badge">${badge.emoji} ${badge.label}</span>
+            ${isSpecial(arte) ? arteBadge(arte) : ''}
+            ${saved?.copies ? `<span class="chip" title="Copias repetidas: material para el Taller">🧩 ${saved.copies} cop${saved.copies === 1 ? 'ia' : 'ias'}</span>` : ''}
+            ${sellos.length ? `<span class="tm-sellos">${selloHTML(sellos)}</span>` : ''}
             <span class="chip">${t.type === 'movie' ? '🎬 Película' : '📺 Serie'}</span>
             ${t.year ? `<span class="chip">📅 ${t.year}</span>` : ''}
             ${t.offPlatform ? '<span class="chip off-platform" title="No había nada con tus plataformas para esta jugada">📡 Fuera de tus plataformas</span>' : ''}
@@ -152,9 +208,15 @@ export async function showTitle(t: Title, o: { headline?: string; reveal?: boole
   const sync = () => {
     const has = inBotin(t.key);
     const won = canClaim(t.key);
-    btnBotin.disabled = has || !won;
-    btnBotin.innerHTML = has ? '✅ En tu botín' : won ? `💰 Al botín <small>+${R.xp} XP</small>` : '🔒 Solo se consigue jugando';
-    btnBotin.title = has || won ? '' : 'Los títulos del botín se ganan en los juegos del casino';
+    btnBotin.disabled = !won;
+    btnBotin.innerHTML = won
+      ? has
+        ? '➕ Copia al Taller'
+        : `💰 Al botín <small>+${R.xp} XP</small>`
+      : has
+        ? '✅ En tu botín'
+        : '🔒 Solo se consigue jugando';
+    btnBotin.title = won && has ? 'Ya la tienes: guárdala como copia para mejorar su arte en el Taller (Mi Botín)' : has || won ? '' : 'Los títulos del botín se ganan en los juegos del casino';
     // "Ya la vi" solo para lo que ya es tuyo: si no, se podrían farmear fichas mirando carteles
     const seen = isSeen(t.key);
     btnSeen.hidden = !has && !seen;
@@ -164,13 +226,15 @@ export async function showTitle(t: Title, o: { headline?: string; reveal?: boole
   sync();
 
   btnBotin.onclick = () => {
-    if (!canClaim(t.key)) return;
+    const a = claimable.get(t.key);
+    if (!a) return;
     claimable.delete(t.key);
-    const xp = addToBotin(t);
-    if (!xp) return;
+    const xp = collect(t, a);
     sfx.coin();
-    fx.floatFrom(btnBotin, `+${xp} XP`, 'xp');
-    fx.burst({ particleCount: 50, spread: 60, origin: { y: 0.7 }, colors: [R.color, '#ffffff'] });
+    if (xp) {
+      fx.floatFrom(btnBotin, `+${xp} XP`, 'xp');
+      fx.burst({ particleCount: 50, spread: 60, origin: { y: 0.7 }, colors: [R.color, '#ffffff'] });
+    } else fx.floatFrom(btnBotin, '+1 copia', 'pos');
     sync();
   };
   btnSeen.onclick = () => {
@@ -192,9 +256,17 @@ export async function showTitle(t: Title, o: { headline?: string; reveal?: boole
     if (inner.dataset.key !== t.key) return closed;
     $('.flip').classList.add('flipped');
     sfx.reveal();
-    if (fancy) fx.shake(rarityRank(r) >= 3 ? 'lg' : 'sm');
+    if (fancy) fx.shake(st === 'rated' && atLeast(r, 'legendaria') ? 'lg' : 'sm');
     if (st === 'rated') fx.rarityBurst(r);
     else fx.burst({ particleCount: 50, colors: ['#29f0ff', '#ffffff'] });
+    if (isSpecial(arte)) {
+      // Un arte especial merece su propio momento
+      setTimeout(() => {
+        sfx.win();
+        fx.toast(`<b>¡Arte ${ARTES[arte].label}!</b><br>${ARTES[arte].desc}`, { icon: ARTES[arte].emoji, color: 'var(--gold)', ms: 4500 });
+        if (arte === 'billete') fx.banner('¡BILLETE DORADO!', 'Guárdala en tu botín y cobra 5.000 fichas', 'var(--gold)', 2400);
+      }, 700);
+    }
   }
 
   details(t.type, t.id)
@@ -209,6 +281,11 @@ export async function showTitle(t: Title, o: { headline?: string; reveal?: boole
       if (d.director) metaHtml += `<p><b>${t.type === 'movie' ? 'Dirección' : 'Creación'}:</b> ${esc(d.director)}</p>`;
       if (d.cast.length) metaHtml += `<p><b>Reparto:</b> ${d.cast.map(esc).join(', ')}</p>`;
       $('[data-f="meta"]').innerHTML = metaHtml;
+      // Sellos que solo se saben con la ficha (duración, temporadas) y la firma si aún no la había
+      const extra = detailSellos(d, t.type);
+      if (extra.length) $('[data-f="badges"]').insertAdjacentHTML('beforeend', `<span class="tm-sellos">${selloHTML(extra)}</span>`);
+      const sig = inner.querySelector<HTMLElement>('.ar-sig');
+      if (sig && !saved?.sig && d.director) sig.textContent = d.director.split(',')[0];
       const p = d.providers;
       const rows = provRow('Incluida en', p.flatrate) + provRow('Alquiler', p.rent) + provRow('Compra', p.buy);
       const country = esc(regionName(getState().region));

@@ -1,18 +1,12 @@
 ---
 import Casino from '../layouts/Casino.astro';
 import { ACCOUNTS, SITE, u } from '../site';
-import { RARITIES, RARITY } from '../lib/rarity';
+import { RARITIES, RARITY, RARITY_RULE } from '../lib/rarity';
+import { ARTE_IDS, ARTES } from '../lib/arts';
 import { existsSync } from 'node:fs';
 
 const hasTmdbLogo = existsSync('public/brand/tmdb.svg');
 
-const rarityRules: Record<string, string> = {
-  comun: 'Nota por debajo de 6,4',
-  rara: 'Nota de 6,4 o más',
-  epica: '7,1 o más y al menos 150 votos',
-  legendaria: '7,7 o más y al menos 500 votos',
-  mitica: '8,2 o más y al menos 1.500 votos',
-};
 const faqs = [
   ['¿Es gratis?', 'Sí. No hay compras, suscripciones ni anuncios.'],
   ['¿Hay dinero real?', 'No. Las fichas son de mentira: no se compran, no se venden y no se canjean por nada. Es un casino de broma para decidir qué ver.'],
@@ -137,13 +131,32 @@ const credits = [
     <p class="muted center">La rareza de cada título sale de su nota media en TMDB y de cuánta gente la ha votado. Los que aún no se han estrenado son 🔮 Próximamente.</p>
     <div class="rarity-row" id="rarity-row">
       {
-        RARITIES.map((r) => (
+        [...RARITIES].reverse().map((r) => (
           <div class="rarity-sample">
-            <div class={`tile r-${r} ${r === 'epica' || r === 'legendaria' || r === 'mitica' ? 'holo' : ''}`} data-sample={r}>
+            <div class={`tile r-${r}`} data-sample={r}>
               <div class="fan-ph">{RARITY[r].emoji}</div>
             </div>
             <b style={`color:${RARITY[r].color}`}>{RARITY[r].label}</b>
-            <small>{rarityRules[r]}</small>
+            <small>{RARITY_RULE[r]}</small>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="land-section">
+    <h2 class="section-title center">🎨 Artes</h2>
+    <p class="muted center">
+      Además de su rareza, cada premio sale con un <b>arte</b>: casi siempre normal, a veces especial. Apostar más y las cajas caras suben la probabilidad, y en el
+      Taller de Mi Botín puedes mejorar tus cartas con copias repetidas o fichas.
+    </p>
+    <div class="arte-list">
+      {
+        ARTE_IDS.filter((a) => a !== 'normal').map((a) => (
+          <div class="arte-item">
+            <span>{ARTES[a].emoji}</span>
+            <b>{ARTES[a].label}</b>
+            <small>{ARTES[a].desc}</small>
           </div>
         ))
       }
@@ -228,9 +241,9 @@ const credits = [
       shuffle(posters.filter((t) => statusOf(t) === 'rated'))
         .slice(0, fan.length)
         .forEach((t, i) => {
-          const r = rarityOf(t.vote, t.votes);
+          const r = rarityOf(t);
           register(t);
-          fan[i].className = `fan-card r-${r} holo`;
+          fan[i].className = `fan-card r-${r}`;
           fan[i].dataset.titleKey = t.key;
           fan[i].setAttribute('role', 'button');
           fan[i].setAttribute('tabindex', '0');
@@ -238,7 +251,7 @@ const credits = [
           fan[i].innerHTML = `<img src="${img(t.poster, 'w342')}" alt="">`;
         });
       for (const el of document.querySelectorAll<HTMLElement>('[data-sample]')) {
-        const t = posters.find((p) => statusOf(p) === 'rated' && rarityOf(p.vote, p.votes) === el.dataset.sample);
+        const t = posters.find((p) => statusOf(p) === 'rated' && rarityOf(p) === el.dataset.sample);
         if (t) el.innerHTML = `<img src="${img(t.poster, 'w185')}" alt="${t.title}" title="${t.title} · ⭐ ${t.vote.toFixed(1)}">`;
       }
       fillCase();
@@ -499,7 +512,7 @@ const credits = [
     await sleep(4600);
     clearInterval(tick);
     const t = items[WIN];
-    const r = statusOf(t) === 'rated' ? rarityOf(t.vote, t.votes) : 'comun';
+    const r = statusOf(t) === 'rated' ? rarityOf(t) : 'comun';
     strip.querySelector(`[data-i="${WIN}"]`)!.classList.add('won');
     fx.rarityBurst(r);
     sfx.reveal();

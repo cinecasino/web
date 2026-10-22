@@ -42,6 +42,6 @@ describe('logros de temporada', () => {
     expect(availableAchievements(state()).some((a) => a.event)).toBe(false);
     expect(availableAchievements(state({ 'cursed-box': 1 })).some((a) => a.id === 'cursed-box')).toBe(true);
     vi.setSystemTime(at(2026, 10, 30));
-    expect(availableAchievements(state()).filter((a) => a.event)).toHaveLength(2);
+    expect(availableAchievements(state()).filter((a) => a.event)).toHaveLength(3);
   });
 });

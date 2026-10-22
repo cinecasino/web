@@ -23,6 +23,8 @@ export const PARAMS = new Set([
   'watch_region',
   'with_watch_monetization_types',
   'region',
+  'primary_release_date.lte',
+  'first_air_date.lte',
 ]);
 
 /** Tiempo de caché de la ruta, o null si no está permitida. */

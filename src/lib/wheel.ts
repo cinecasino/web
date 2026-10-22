@@ -164,8 +164,8 @@ export function initWheel(o: WheelOpts) {
       fx.toast('TMDB no ha devuelto nada. ¡Otra vuelta!', { icon: '🤷' });
       return;
     }
-    grantClaim(t);
-    addHistory(tileHTML(t, { size: 'w185' }));
+    const arte = grantClaim(t);
+    addHistory(tileHTML(t, { size: 'w185', arte, sellos: false }));
     showTitle(t, { headline: seg.kind === 'jackpot' ? o.jackpotHeadline : o.genreHeadline(seg), reveal: true, prize: true });
   }
 

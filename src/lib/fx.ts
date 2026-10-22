@@ -59,20 +59,27 @@ export function fireworks(duration = 2500, colors?: string[]) {
 
 export function rarityBurst(r: Rarity) {
   const c = RARITY[r].color;
-  if (r === 'comun') burst({ particleCount: 40, colors: [c, '#ffffff'] });
+  if (r === 'bodrio') burst({ particleCount: 25, spread: 40, startVelocity: 20, colors: [c, '#5a4020'] });
+  else if (r === 'comun' || r === 'pococomun') burst({ particleCount: 40, colors: [c, '#ffffff'] });
   else if (r === 'rara') burst({ particleCount: 90, colors: [c, '#ffffff'] });
   else if (r === 'epica') {
     burst({ particleCount: 140, colors: [c, '#ffffff', '#e0b0ff'] });
     cannons([c, '#ffffff']);
-  } else if (r === 'legendaria') {
+  } else if (r === 'legendaria' || r === 'reliquia') {
     cannons([c, '#ffffff', '#ffe08a']);
     fireworks(1800, [c, '#ffffff', '#ffe08a']);
     coinRain(30);
-  } else {
+  } else if (r === 'mitica') {
     cannons();
     fireworks(3000);
     coinRain(50);
     flash('#ff3d7f');
+  } else {
+    // Divina: lo máximo
+    cannons(['#fff3b0', '#ffffff', '#ffe08a']);
+    fireworks(4000, ['#fff3b0', '#ffffff', '#ffd23c', '#29f0ff']);
+    coinRain(80, '✨');
+    flash('#fff6d0');
   }
 }
 

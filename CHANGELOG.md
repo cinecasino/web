@@ -9,6 +9,11 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y l
 - **Ajustes ⚙️:** "solo mis plataformas" (Netflix, Prime…, solo lo incluido en la suscripción), país de "dónde verla" e idioma de títulos y sinopsis (español o inglés).
 - **Halloween** (24 de octubre – 2 de noviembre): tema naranja y morado, Ruleta del Terror, Caja Maldita y dos logros de temporada. Se puede forzar con `?evento=halloween`.
 - **Tests con Vitest** (`npm test`, también en el CI): rarezas, partida, tragaperras (incluido su retorno exacto al jugador), eventos y Worker.
+- **9 rarezas:** se añaden 💩 Bodrio, 🟢 Poco común, 👁️ Reliquia (obra maestra anterior a 1970) y ✨ Divina. Las cartas que ya tenías se recalculan al cargar la partida.
+- **Sellos:** pegatinas que salen de los datos de TMDB: Clásico, Cine mudo, Joya oculta, Taquillazo, Recién salida, Internacional y, en la ficha, Maratón y Exprés.
+- **Artes:** cada premio sale con un acabado sorteado: Brillante, Holográfico, Noir, VHS, Pop-art, Píxel, Dorado, Glitch, Lenticular, Firmada, Billete dorado (+5.000 fichas) y, en Halloween, Embrujada. Las apuestas altas y las cajas caras suben la probabilidad.
+- **Copias y Taller:** un título repetido ya no se pierde, se guarda como copia; con 3 copias o con fichas se sube el arte de una carta un escalón.
+- **Álbum de artes** y filtros por sello y por arte en Mi Botín; 13 logros nuevos.
 
 ### Cambiado
 - **La web pasa a GitHub Pages** (`pages.yml`): es 100 % estática, sin registro, con el navegador llamando a TMDB directamente. Se retira Vercel.

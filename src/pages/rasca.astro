@@ -50,9 +50,10 @@ import Casino from '../layouts/Casino.astro';
 </Casino>
 
 <script>
-  import { spend, earn, stat, addToBotin, inBotin } from '../lib/store';
+  import { spend, earn, stat, inBotin } from '../lib/store';
   import { luckyPick, pickType, img, type Title } from '../lib/tmdb';
-  import { showTitle } from '../lib/card';
+  import { collect, showTitle } from '../lib/card';
+  import { ARTES, isSpecial, rollArte } from '../lib/arts';
   import { rarityOf, RARITY } from '../lib/rarity';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
@@ -236,7 +237,7 @@ import Casino from '../layouts/Casino.astro';
     titleP = luckyPick(pickType(), { minVote: 6, minVotes: 200 }, 30).catch(() => null);
     title = await titleP;
     if (title) {
-      const r = rarityOf(title.vote, title.votes);
+      const r = rarityOf(title);
       document.getElementById('sc-title')!.textContent = title.title;
       (document.getElementById('sc-poster') as HTMLImageElement).src = img(title.poster, 'w185');
       const badge = document.getElementById('sc-rarity')!;
@@ -264,12 +265,15 @@ import Casino from '../layouts/Casino.astro';
       resultEl.className = 'sc-result win';
       resultEl.innerHTML = `<b>🏆 ¡PREMIO! ${syms[0].e}×3 · x${syms[0].mult}</b><span>+${fmt(amount)} 🪙</span>`;
       resultEl.hidden = false;
-      // Premio completo: las fichas y además el título va al botín
+      // Premio completo: las fichas y además el título va al botín, con un arte sorteado (algo más de suerte)
       const t = title ?? (await titleP);
-      if (t && !inBotin(t.key)) {
-        const xp = addToBotin(t);
-        labelEl.textContent = `🏆 PREMIADO · EN TU BOTÍN (+${xp} XP)`;
-      } else if (t) labelEl.textContent = '🏆 PREMIADO · YA ESTABA EN TU BOTÍN';
+      if (t) {
+        const had = inBotin(t.key);
+        const arte = rollArte(1.5);
+        const xp = collect(t, arte);
+        const arteTxt = isSpecial(arte) && !had ? ` · ARTE ${ARTES[arte].label.toUpperCase()} ${ARTES[arte].emoji}` : '';
+        labelEl.textContent = had ? '🏆 PREMIADO · YA LA TENÍAS: +1 COPIA PARA EL TALLER' : `🏆 PREMIADO · EN TU BOTÍN (+${xp} XP)${arteTxt}`;
+      }
       const big = syms[0].mult >= 10;
       if (big) {
         sfx.jackpot();
@@ -296,7 +300,7 @@ import Casino from '../layouts/Casino.astro';
     // Si se rascó antes de que llegara el título, se espera para no mezclar boletos
     const t = title ?? (await titleP);
     if (t) {
-      const r = rarityOf(t.vote, t.votes);
+      const r = rarityOf(t);
       setTimeout(() => fx.rarityBurst(r), win ? 900 : 200);
       seeTitle.hidden = false;
     }

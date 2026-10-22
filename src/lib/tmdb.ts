@@ -20,6 +20,8 @@ export interface Title {
   date?: string;
   genres: number[];
   popularity: number;
+  /** Idioma original (ISO 639-1), para el sello Internacional. */
+  lang?: string;
   /** Lo trajo el último intento de luckyPick, que ignora el filtro de plataformas. */
   offPlatform?: boolean;
 }
@@ -107,6 +109,7 @@ export function normalize(r: any, type?: MediaType): Title {
     date,
     genres: r.genre_ids ?? r.genres?.map((g: any) => g.id) ?? [],
     popularity: r.popularity ?? 0,
+    lang: r.original_language,
   };
 }
 
@@ -129,6 +132,8 @@ export interface DiscoverOpts {
   minVotes?: number;
   sort?: string;
   page?: number;
+  /** Solo estrenadas hasta ese año, incluido (para buscar Reliquias). */
+  maxYear?: number;
   /** Ignora el filtro "solo mis plataformas" (último recurso de luckyPick). */
   anyProvider?: boolean;
 }
@@ -149,6 +154,7 @@ export async function discover(type: MediaType, o: DiscoverOpts = {}) {
     'vote_count.gte': o.minVotes ?? 150,
     include_adult: false,
     page: o.page ?? 1,
+    [type === 'movie' ? 'primary_release_date.lte' : 'first_air_date.lte']: o.maxYear ? `${o.maxYear}-12-31` : undefined,
     ...providerParams(o),
   });
   return {

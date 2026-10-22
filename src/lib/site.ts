@@ -30,6 +30,32 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
   el.click();
 });
+// Artes Holográfico y Lenticular: siguen al puntero (una actualización por fotograma como mucho)
+let tiltEl: HTMLElement | null = null;
+let tiltX = 0;
+let tiltY = 0;
+let tiltRaf = 0;
+document.addEventListener(
+  'pointermove',
+  (e) => {
+    tiltEl = (e.target as HTMLElement).closest?.<HTMLElement>('.arte-holografico, .arte-lenticular') ?? null;
+    tiltX = e.clientX;
+    tiltY = e.clientY;
+    if (!tiltEl || tiltRaf) return;
+    tiltRaf = requestAnimationFrame(() => {
+      tiltRaf = 0;
+      if (!tiltEl) return;
+      const r = tiltEl.getBoundingClientRect();
+      const x = Math.min(1, Math.max(0, (tiltX - r.left) / r.width));
+      const y = Math.min(1, Math.max(0, (tiltY - r.top) / r.height));
+      tiltEl.style.setProperty('--mx', `${(x * 100).toFixed(1)}%`);
+      tiltEl.style.setProperty('--my', `${(y * 100).toFixed(1)}%`);
+      tiltEl.style.setProperty('--mxn', x.toFixed(3));
+    });
+  },
+  { passive: true },
+);
+
 document.addEventListener('pointerdown', (e) => {
   if ((e.target as HTMLElement).closest('.btn, .chip, .nav a')) sfx.click();
 });

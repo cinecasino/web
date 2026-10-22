@@ -1,0 +1,167 @@
+/* ============ ARTES DE LAS CARTAS ============
+   Cada arte es una clase arte-<id> en la carta (.tile) o en el póster de la ficha (.flip-front), más las
+   capas que pinta arteRender() en src/lib/arts.ts. Todo con CSS sobre el póster real: no hay ilustraciones.
+   En las rejillas los artes están quietos y solo se animan al pasar el ratón; en la ficha, siempre.
+   --mx/--my (porcentaje) y --mxn (0–1) los pone src/lib/site.ts al mover el puntero. */
+
+@property --mxn { syntax: '<number>'; inherits: true; initial-value: 0.5; }
+
+.arte { --mx: 50%; --my: 30%; container-type: inline-size; }
+.tile-rating, .tile-type, .tile-title, .tile-sellos { z-index: 3; }
+.ar-layer, .ar-g, .ar-lent { position: absolute; inset: 0; pointer-events: none; }
+.ar-g, .ar-lent { width: 100%; height: 100%; object-fit: cover; }
+.arte::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+
+/* Cuándo se mueven: carta con el ratón encima, o en la ficha */
+.tile.arte:hover, .flip-front.arte { --live: running; }
+.arte { --live: paused; }
+
+/* ✨ Brillante: un destello cruza la carta */
+.arte-brillante::before {
+  background: linear-gradient(115deg, transparent 35%, #ffffff55 46%, #ffffffaa 50%, #ffffff55 54%, transparent 65%);
+  background-size: 300% 100%;
+  background-position: 70% 0;
+  mix-blend-mode: overlay;
+  animation: arShine 2.8s ease-in-out infinite var(--live);
+}
+@keyframes arShine { 0% { background-position: 150% 0; } 60%, 100% { background-position: -50% 0; } }
+
+/* 🌈 Holográfico: arcoíris que sigue al puntero */
+.arte-holografico::before {
+  background:
+    radial-gradient(circle at var(--mx) var(--my), #ffffff66, transparent 40%),
+    conic-gradient(from 90deg at var(--mx) var(--my), #ff00ea66, #00f0ff66, #fff20066, #2bff8866, #ff00ea66);
+  mix-blend-mode: color-dodge;
+  opacity: 0.8;
+  animation: spinHue 5s linear infinite var(--live);
+}
+
+/* 🎞️ Noir */
+.arte-noir img { filter: grayscale(1) contrast(1.4) brightness(0.95); }
+.arte-noir::before { background: radial-gradient(ellipse at 50% 45%, transparent 45%, #000c 100%); }
+
+/* 📼 VHS */
+.arte-vhs img { filter: saturate(1.5) contrast(1.15) hue-rotate(-8deg); }
+.ar-vhs {
+  z-index: 1;
+  background:
+    repeating-linear-gradient(0deg, #0004 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, #ff004033, transparent 15%, transparent 85%, #00e5ff33);
+}
+.ar-vhs::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 12%;
+  top: -12%;
+  background: linear-gradient(transparent, #ffffff22 40%, #ffffff44 50%, #ffffff22 60%, transparent);
+  animation: arTrack 3.2s linear infinite var(--live);
+}
+@keyframes arTrack { to { top: 100%; } }
+.ar-rec { position: absolute; z-index: 2; bottom: 30%; left: 8px; font: 700 0.7rem ui-monospace, monospace; color: #fff; text-shadow: 1px 0 #ff0040, -1px 0 #00e5ff; letter-spacing: 1px; }
+
+/* 🟨 Pop-art */
+.arte-popart img { filter: saturate(2.2) contrast(1.35); }
+.ar-dots { z-index: 1; background: radial-gradient(#0007 28%, transparent 31%) 0 0 / 5px 5px; mix-blend-mode: multiply; }
+.tile.arte-popart, .flip-front.arte-popart { border-color: #111 !important; box-shadow: 5px 5px 0 #111, 0 0 0 3px var(--rc) !important; }
+.ar-pow {
+  position: absolute;
+  z-index: 2;
+  right: -2px;
+  bottom: 32%;
+  rotate: -12deg;
+  padding: 2px 8px;
+  font-family: var(--display);
+  font-size: max(0.7rem, 11cqw);
+  color: #e0001b;
+  background: #ffe600;
+  border: 2px solid #111;
+  box-shadow: 3px 3px 0 #111;
+}
+
+/* 👾 Píxel: el póster de 92 px, ampliado sin suavizar */
+.arte-pixel img { image-rendering: pixelated; filter: saturate(1.35) contrast(1.1); }
+.arte-pixel::before { background: linear-gradient(#0003 1px, transparent 1px) 0 0 / 100% 4px, linear-gradient(90deg, #0002 1px, transparent 1px) 0 0 / 4px 100%; }
+
+/* 🥇 Dorado */
+.arte-dorado img { filter: sepia(0.6) saturate(1.7) hue-rotate(-12deg) brightness(1.05); }
+.tile.arte-dorado, .flip-front.arte-dorado { border-color: #ffd23c !important; box-shadow: 0 0 0 2px #fff6, 0 0 28px #ffd23c, 0 10px 22px #0008 !important; }
+.arte-dorado::before { background: linear-gradient(135deg, #fff6 0%, transparent 30%, transparent 60%, #ffd23c55 100%); mix-blend-mode: overlay; }
+.ar-spark { position: absolute; z-index: 2; color: #fff6c8; text-shadow: 0 0 8px #ffd23c; font-size: max(0.8rem, 10cqw); animation: arTwinkle 1.6s ease-in-out infinite var(--live); }
+.ar-spark.s1 { top: 18%; left: 12%; }
+.ar-spark.s2 { top: 44%; right: 10%; animation-delay: -0.5s; }
+.ar-spark.s3 { bottom: 30%; left: 30%; animation-delay: -1s; }
+@keyframes arTwinkle { 50% { opacity: 0.2; transform: scale(0.6) rotate(45deg); } }
+
+/* 🌀 Glitch: dos copias desplazadas y recortadas en franjas */
+.ar-g { z-index: 1; mix-blend-mode: screen; opacity: 0.55; }
+.ar-g.g1 { filter: hue-rotate(-70deg) saturate(3); transform: translateX(-3%); clip-path: inset(22% 0 58% 0); animation: arGlitch1 2.2s steps(1) infinite var(--live); }
+.ar-g.g2 { filter: hue-rotate(110deg) saturate(3); transform: translateX(3%); clip-path: inset(62% 0 20% 0); animation: arGlitch2 1.7s steps(1) infinite var(--live); }
+@keyframes arGlitch1 { 0% { clip-path: inset(22% 0 58% 0); } 30% { clip-path: inset(5% 0 85% 0); } 55% { clip-path: inset(70% 0 12% 0); } 80% { clip-path: inset(40% 0 45% 0); } }
+@keyframes arGlitch2 { 0% { clip-path: inset(62% 0 20% 0); } 35% { clip-path: inset(30% 0 60% 0); } 60% { clip-path: inset(85% 0 3% 0); } 85% { clip-path: inset(12% 0 75% 0); } }
+
+/* 🪟 Lenticular: al mover el puntero (o solo, en móvil) aparece un fotograma de la película */
+.arte-lenticular { --mxn: 0.4; }
+.ar-lent { z-index: 1; opacity: clamp(0, calc((var(--mxn) - 0.35) * 2.4), 1); transition: opacity 0.15s; }
+.arte-lenticular::before { z-index: 2; background: repeating-linear-gradient(90deg, #ffffff14 0 2px, transparent 2px 6px); }
+@media (hover: none) {
+  .flip-front.arte-lenticular { animation: arLent 5s ease-in-out infinite alternate; }
+}
+@keyframes arLent { from { --mxn: 0.2; } to { --mxn: 0.95; } }
+
+/* ✍️ Firmada */
+.tile.arte-firmada, .flip-front.arte-firmada { border-color: #fff !important; box-shadow: 0 0 0 2px var(--rc), 0 0 26px #fff8, 0 10px 22px #0008 !important; }
+.ar-sig {
+  position: absolute;
+  z-index: 2;
+  left: 6%;
+  right: 6%;
+  bottom: 24%;
+  rotate: -9deg;
+  overflow: hidden;
+  font-family: 'Caveat', cursive;
+  font-size: max(1rem, 15cqw);
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  color: #fff;
+  text-shadow: 0 1px 2px #000, 0 0 10px #000;
+}
+.ar-ed { position: absolute; z-index: 3; bottom: 40%; left: 50%; translate: -50% 0; padding: 2px 6px; border-radius: 6px; font: 800 max(0.5rem, 5cqw) var(--body); letter-spacing: 1px; color: var(--gold); background: #000c; white-space: nowrap; }
+
+/* 🎫 Billete dorado */
+.arte-billete img { filter: sepia(0.5) saturate(1.5) brightness(1.05); }
+.tile.arte-billete, .flip-front.arte-billete { border: 3px dashed #ffd23c !important; box-shadow: 0 0 34px #ffd23c, inset 0 0 0 4px #b8860b !important; }
+.ar-ticket {
+  position: absolute;
+  z-index: 2;
+  top: 42%;
+  left: -12%;
+  right: -12%;
+  rotate: -14deg;
+  padding: 4px 0;
+  text-align: center;
+  font-family: var(--display);
+  font-size: max(0.6rem, 8cqw);
+  color: #3a1f00;
+  background: linear-gradient(90deg, #b8860b, #ffe27a, #b8860b);
+  box-shadow: 0 2px 10px #000a;
+}
+
+/* 🎃 Embrujada (solo Halloween) */
+.arte-embrujada img { filter: sepia(0.35) hue-rotate(55deg) saturate(1.5) brightness(0.9); }
+.arte-embrujada::before { background: radial-gradient(ellipse at 50% 60%, transparent 40%, #1b5e2088 100%); }
+.ar-web { position: absolute; z-index: 2; font-size: max(1rem, 16cqw); opacity: 0.85; filter: drop-shadow(0 0 4px #000); }
+.ar-web.w1 { top: -2px; left: -2px; }
+.ar-web.w2 { bottom: 26%; right: -2px; rotate: 180deg; }
+.ar-ghost { position: absolute; z-index: 2; top: 38%; left: 40%; font-size: max(1rem, 14cqw); opacity: 0.7; animation: arGhost 3s ease-in-out infinite var(--live); }
+@keyframes arGhost { 50% { transform: translate(-18%, -24%); opacity: 0.25; } }
+
+/* Etiqueta del arte en la ficha y en el resumen */
+.arte-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 999px; font-weight: 800; font-size: 0.85rem; background: linear-gradient(135deg, #ffc93c33, #ff2bd633); border: 2px solid var(--gold); }
+
+@media (prefers-reduced-motion: reduce) {
+  .arte, .tile.arte:hover, .flip-front.arte { --live: paused; }
+  .flip-front.arte-lenticular { animation: none; }
+}

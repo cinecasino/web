@@ -84,7 +84,7 @@ import Casino from '../layouts/Casino.astro';
   }
 
   function cardHTML(t: Title, showVote: boolean) {
-    const r = rarityOf(t.vote, t.votes);
+    const r = rarityOf(t);
     register(t);
     // La carta oculta va en neutro: el color de rareza delataría la nota
     return `<div class="hilo-inner ${showVote ? `r-${r}` : 'r-hidden'}" data-rarity="${r}" ${showVote ? `data-title-key="${t.key}" role="button" tabindex="0"` : ''}>

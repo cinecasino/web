@@ -1,6 +1,7 @@
 import type { MediaType, Title } from './tmdb';
 import { rarityOf, RARITY, statusOf, type Rarity } from './rarity';
 import { availableAchievements, type Achievement } from './achievements';
+import { ARTES, GOLDEN_TICKET_COINS, TALLER_COINS, TALLER_COPIES, upgradesFrom, type Arte } from './arts';
 import { localDate } from './util';
 
 export type Mode = MediaType | 'both';
@@ -20,6 +21,17 @@ export interface Saved {
   rarity: Rarity;
   addedAt: number;
   seen: boolean;
+  /** Acabado de la carta (sin él, normal). */
+  arte?: Arte;
+  /** Copias repetidas que te han tocado: material para el Taller. */
+  copies?: number;
+  /** Idioma original y popularidad: para los sellos. */
+  lang?: string;
+  pop?: number;
+  /** Fotograma de fondo (arte Lenticular). */
+  backdrop?: string | null;
+  /** Firma del arte Firmada (quien la dirigió o creó). */
+  sig?: string;
 }
 
 export interface Stats {
@@ -92,7 +104,9 @@ const fresh = (): State => ({
 
 function normalize(s: any): State {
   const base = fresh();
-  return { ...base, ...s, stats: { ...base.stats, ...s?.stats }, daily: { ...base.daily, ...s?.daily } };
+  // La rareza se recalcula siempre con los datos guardados: así las partidas antiguas pasan a las 9 rarezas
+  const botin: Saved[] = (Array.isArray(s?.botin) ? s.botin : []).map((b: Saved) => ({ ...b, rarity: rarityOf(b) }));
+  return { ...base, ...s, botin, stats: { ...base.stats, ...s?.stats }, daily: { ...base.daily, ...s?.daily } };
 }
 
 function load(): State {
@@ -246,10 +260,22 @@ export const providerFilterOn = () => state.providersOnly && state.providers.len
 export const inBotin = (key: string) => state.botin.some((b) => b.key === key);
 export const isSeen = (key: string) => state.seenKeys.includes(key);
 
-/** Guarda el título en el botín. Devuelve la XP ganada (0 si ya estaba). */
-export function addToBotin(t: Title): number {
-  if (inBotin(t.key)) return 0;
-  const rarity = rarityOf(t.vote, t.votes);
+export const savedOf = (key: string) => state.botin.find((b) => b.key === key);
+
+/**
+ * Guarda el título en el botín con su arte. Devuelve la XP ganada.
+ * Si ya lo tenías, suma una copia para el Taller y devuelve 0.
+ * El Billete dorado trae además sus fichas (aviso con casino:golden-ticket).
+ */
+export function addToBotin(t: Title, arte: Arte = 'normal'): number {
+  const had = savedOf(t.key);
+  if (had) {
+    had.copies = (had.copies ?? 0) + 1;
+    commit();
+    emit('casino:copy', { title: had.title, copies: had.copies });
+    return 0;
+  }
+  const rarity = rarityOf(t);
   state.botin.unshift({
     key: t.key,
     id: t.id,
@@ -264,10 +290,51 @@ export function addToBotin(t: Title): number {
     rarity,
     addedAt: Date.now(),
     seen: isSeen(t.key),
+    arte,
+    lang: t.lang,
+    pop: Math.round(t.popularity),
+    backdrop: t.backdrop,
   });
+  if (arte === 'billete') {
+    state.coins += GOLDEN_TICKET_COINS;
+    state.stats.won += GOLDEN_TICKET_COINS;
+    emit('casino:golden-ticket', { title: t.title, coins: GOLDEN_TICKET_COINS });
+  }
   const xp = RARITY[rarity].xp;
   addXp(xp);
   return xp;
+}
+
+/** Cambia datos de una carta guardada (p. ej. la firma, que llega después con la ficha). */
+export function patchSaved(key: string, patch: Partial<Pick<Saved, 'sig' | 'backdrop'>>) {
+  const b = savedOf(key);
+  if (!b) return;
+  Object.assign(b, patch);
+  commit();
+}
+
+/**
+ * Taller: sube el arte de una carta un escalón, pagando con copias o con fichas.
+ * Devuelve false si el salto no es válido o no te llega.
+ */
+export function upgradeArte(key: string, to: Arte, pay: 'copies' | 'coins'): boolean {
+  const b = savedOf(key);
+  if (!b || !upgradesFrom(b.arte).includes(to)) return false;
+  if (pay === 'copies') {
+    if ((b.copies ?? 0) < TALLER_COPIES) return false;
+    b.copies = (b.copies ?? 0) - TALLER_COPIES;
+  } else {
+    const cost = TALLER_COINS[ARTES[to].tier!];
+    if (state.coins < cost) {
+      emit('casino:broke', { need: cost });
+      return false;
+    }
+    state.coins -= cost;
+    state.stats.spent += cost;
+  }
+  b.arte = to;
+  commit({ coinsDelta: pay === 'coins' ? -TALLER_COINS[ARTES[to].tier!] : 0 });
+  return true;
 }
 
 export function removeFromBotin(key: string) {
@@ -276,13 +343,13 @@ export function removeFromBotin(key: string) {
 }
 
 /** Marca como vista. Devuelve las fichas ganadas (0 si ya estaba vista). */
-export function markSeen(t: { key: string; vote: number; votes: number; date?: string }): number {
+export function markSeen(t: { key: string; vote: number; votes: number; year?: string; date?: string }): number {
   if (isSeen(t.key) || statusOf(t) === 'upcoming') return 0;
   state.seenKeys.push(t.key);
   state.stats.seen++;
   const item = state.botin.find((b) => b.key === t.key);
   if (item) item.seen = true;
-  const r = RARITY[rarityOf(t.vote, t.votes)];
+  const r = RARITY[rarityOf(t)];
   state.coins += r.coins;
   state.stats.won += r.coins;
   addXp(r.xp * 2);
