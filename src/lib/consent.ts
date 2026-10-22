@@ -39,7 +39,7 @@ export function showCookieBanner(force = false) {
     <div class="cb-text">
       <b>🍪 Cookies y almacenamiento</b>
       <p>Guardamos tu partida en el almacenamiento local del navegador${ACCOUNTS ? ', y si inicias sesión usamos una cookie técnica de sesión. Son imprescindibles' : '. Es imprescindible'} y no rastrea nada.
-      Opcionalmente, los tráileres se cargan desde YouTube, que puede poner sus propias cookies. <a href="${u('cookies')}">Más información</a></p>
+      Opcionalmente, los tráileres se cargan desde YouTube, que puede poner sus propias cookies. <a href="${u('cookies')}">Más información sobre las cookies</a></p>
       <label class="cb-toggle"><input type="checkbox" ${external ? 'checked' : ''} data-ext> Permitir contenido externo (tráileres de YouTube)</label>
     </div>
     <div class="cb-actions">

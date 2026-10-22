@@ -28,6 +28,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Comprobar acceso a TMDB
+        # (Lighthouse corre en el CI, antes de llegar aquí: si la web empeora, no se publica)
         env:
           PUBLIC_TMDB_PROXY: ${{ vars.PUBLIC_TMDB_PROXY }}
           PUBLIC_TMDB_TOKEN: ${{ secrets.PUBLIC_TMDB_TOKEN }}

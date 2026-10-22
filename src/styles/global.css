@@ -723,7 +723,7 @@ main { max-width: 1240px; margin: 0 auto; padding: 8px 16px 40px; }
 .game-card:hover { box-shadow: 0 0 40px var(--c), 0 20px 40px #000b; border-color: var(--c); }
 .game-icon { font-size: 3.6rem; transition: transform 0.4s cubic-bezier(.2, .9, .3, 1.8); width: max-content; }
 .game-card:hover .game-icon { transform: scale(1.25) rotate(-12deg); }
-.game-card h3 { font-family: var(--display); font-size: 1.35rem; margin: 10px 0 6px; color: var(--c); text-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent); }
+.game-card h2 { font-family: var(--display); font-size: 1.35rem; margin: 10px 0 6px; color: var(--c); text-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent); }
 .game-card p { margin: 0 0 16px; color: var(--muted); flex: 1; }
 .game-foot { display: flex; justify-content: space-between; align-items: center; }
 .cost { font-weight: 800; color: var(--gold); }

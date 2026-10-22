@@ -61,6 +61,39 @@ jobs:
           node -e 'const m=JSON.parse(require("fs").readFileSync("dist/manifest.webmanifest"));if(m.start_url!=="/web/?source=pwa"||m.scope!=="/web/")process.exit(1)' \
             && echo "✅ manifest con prefijo" || { echo "::error::manifest sin prefijo"; exit 1; }
 
+  lighthouse:
+    name: Lighthouse (rendimiento, accesibilidad, SEO)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_PATH: /web
+      SITE_URL: https://example.github.io
+      # Con el Worker, las páginas cargan películas de verdad y se mide la web como la ve la gente
+      # (el Worker acepta peticiones de 127.0.0.1:4321). Sin la variable, se mide sin datos de TMDB.
+      PUBLIC_TMDB_PROXY: ${{ vars.PUBLIC_TMDB_PROXY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Compilar (modo pages)
+        run: npm run build
+
+      - name: Lighthouse CI
+        # Umbrales y límites de tamaño en lighthouserc.json
+        run: npx --yes @lhci/cli@0.15.1 autorun
+
+      - name: Guardar informes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse
+          path: .lighthouseci/
+          retention-days: 14
+
   server:
     name: Servidor con cuentas (modo server)
     runs-on: ubuntu-latest

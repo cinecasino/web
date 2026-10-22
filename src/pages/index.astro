@@ -12,7 +12,7 @@ const games: { href: string; icon: string; name: string; desc: string; cost?: st
   { href: u('rasca'), icon: '🎟️', name: 'Rasca y Gana', desc: 'Rasca el boleto. Tres iguales y te forras.', cost: '25', color: '#29f0ff' },
   { href: u('mayor-menor'), icon: '🃏', name: '¿Más o Menos?', desc: '¿Cuál tiene más nota? Dobla o nada.', cost: 'desde 25', color: '#ff2bd6' },
   { href: u('blackjack'), icon: '🂡', name: 'Blackjack', desc: 'La nota es el valor de la carta. Las Míticas son el As.', cost: 'desde 25', color: '#2bff88' },
-  { href: u('botin'), icon: '💰', name: 'Mi Botín', desc: 'Tu colección, el Taller de artes y la ruleta de "¿qué veo hoy?".', color: '#8a3cff', cta: 'IR' },
+  { href: u('botin'), icon: '💰', name: 'Mi Botín', desc: 'Tu colección, el Taller de artes y la ruleta de "¿qué veo hoy?".', color: '#b48cff', cta: 'IR' },
   { href: u('colecciones'), icon: '🧩', name: 'Colecciones', desc: 'Completa sagas y junta pelis del mismo director.', color: '#29f0ff', cta: 'IR' },
 ];
 ---
@@ -33,7 +33,7 @@ const games: { href: string; icon: string; name: string; desc: string; cost?: st
       games.map((g) => (
         <a class:list={['game-card', { 'event-card': g.event }]} href={g.href} style={`--c:${g.color}`} data-event={g.event} hidden={!!g.event}>
           <div class="game-icon">{g.icon}</div>
-          <h3>{g.name}</h3>
+          <h2>{g.name}</h2>
           <p>{g.desc}</p>
           <div class="game-foot">
             {g.cost ? <span class="cost">🪙 {g.cost}</span> : <span />}

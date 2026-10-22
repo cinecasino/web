@@ -338,7 +338,7 @@ export async function showTitle(
           // Sin consentimiento no se contacta con YouTube
           const box = $('[data-f="trailer"]');
           box.innerHTML = `<div class="consent-gate">
-            <p>🍪 El tráiler se carga desde <b>YouTube</b>, que puede usar sus propias cookies. <a href="${u('cookies')}" target="_blank">Más info</a></p>
+            <p>🍪 El tráiler se carga desde <b>YouTube</b>, que puede usar sus propias cookies. <a href="${u('cookies')}" target="_blank">Más información sobre las cookies</a></p>
             <button class="btn btn-gold" data-allow>Permitir y ver</button>
             <a class="btn btn-ghost" href="https://www.youtube.com/watch?v=${d.trailer}" target="_blank" rel="noopener">Abrir en YouTube ↗</a>
           </div>`;
