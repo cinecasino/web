@@ -8,6 +8,19 @@ main = "src/index.ts"
 compatibility_date = "2026-10-01"
 workers_dev = true
 
+# Logs de cada petición en el panel de Cloudflare (Observability). Igual que en el panel: si se
+# quitara de aquí, el siguiente despliegue los desactivaría.
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
+
+[observability.traces]
+enabled = false
+head_sampling_rate = 1
+persist = true
+
 [vars]
 # Webs que pueden usarlo desde el navegador. Si usas dominio propio, añádelo aquí.
 ALLOWED_ORIGINS = "https://cinecasino.github.io,http://localhost:4321,http://127.0.0.1:4321"
