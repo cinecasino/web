@@ -39,10 +39,20 @@ export interface Details {
   seasons: number | null;
   genres: string[];
   director: string;
+  /** Quién la dirigió (películas), con su id de TMDB: para las colecciones de directores. */
+  directors: Person[];
+  /** Saga a la que pertenece (solo películas). */
+  collection: Ref | null;
   cast: string[];
   trailer: string | null;
   providers: { flatrate: Provider[]; rent: Provider[]; buy: Provider[]; link: string | null };
 }
+
+export interface Ref {
+  id: number;
+  name: string;
+}
+export type Person = Ref;
 
 // Modo server: todo pasa por nuestro proxy (/api/tmdb) y el token vive solo en el servidor.
 // Modo pages (GitHub Pages, sin servidor): con PUBLIC_TMDB_PROXY, el navegador llama al Worker de Cloudflare
@@ -248,10 +258,10 @@ export async function details(type: MediaType, id: number): Promise<Details> {
       ?.key ?? null;
   const pr = d['watch/providers']?.results?.[getState().region] ?? {};
   const prov = (a: any[] | undefined): Provider[] => (a ?? []).map((p) => ({ id: p.provider_id, name: p.provider_name, logo: p.logo_path }));
-  const director =
-    type === 'movie'
-      ? ((d.credits?.crew ?? []) as any[]).filter((c) => c.job === 'Director').map((c) => c.name).join(', ')
-      : ((d.created_by ?? []) as any[]).map((c) => c.name).join(', ');
+  const directors: Person[] =
+    type === 'movie' ? ((d.credits?.crew ?? []) as any[]).filter((c) => c.job === 'Director').map((c) => ({ id: c.id, name: c.name })) : [];
+  const director = type === 'movie' ? directors.map((p) => p.name).join(', ') : ((d.created_by ?? []) as any[]).map((c) => c.name).join(', ');
+  const col = d.belongs_to_collection;
   return {
     tagline: d.tagline ?? '',
     overview,
@@ -259,8 +269,35 @@ export async function details(type: MediaType, id: number): Promise<Details> {
     seasons: d.number_of_seasons ?? null,
     genres: ((d.genres ?? []) as any[]).map((g) => g.name),
     director,
+    directors,
+    collection: col ? { id: col.id, name: col.name } : null,
     cast: ((d.credits?.cast ?? []) as any[]).slice(0, 6).map((c) => c.name),
     trailer,
     providers: { flatrate: prov(pr.flatrate), rent: prov(pr.rent), buy: prov(pr.buy), link: pr.link ?? null },
   };
+}
+
+const released = (date?: string) => !!date && date <= new Date().toISOString().slice(0, 10);
+
+/** Películas ya estrenadas de una saga, en orden de estreno. */
+export async function collectionParts(id: number): Promise<{ name: string; parts: Title[] }> {
+  const d = await get(`/collection/${id}`);
+  const parts = ((d.parts ?? []) as any[])
+    .filter((p) => released(p.release_date))
+    .map((p) => normalize(p, 'movie'))
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+  return { name: d.name ?? '', parts };
+}
+
+/**
+ * Filmografía "notable" de un director: largometrajes que dirigió, ya estrenados y con al menos
+ * 200 votos (deja fuera cortos, documentales menores y proyectos sin estrenar).
+ */
+export async function directedMovies(personId: number): Promise<Title[]> {
+  const d = await get(`/person/${personId}/movie_credits`);
+  const seen = new Set<number>();
+  return ((d.crew ?? []) as any[])
+    .filter((c) => c.job === 'Director' && (c.vote_count ?? 0) >= 200 && released(c.release_date) && !seen.has(c.id) && seen.add(c.id))
+    .map((c) => normalize(c, 'movie'))
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
 }

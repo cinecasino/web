@@ -5,6 +5,9 @@ import Casino from '../layouts/Casino.astro';
 <Casino title="Logros" active="logros">
   <section class="logros">
     <h1 class="page-title">🏆 LOGROS</h1>
+    <h2 class="section-title" id="misiones">📜 Misiones</h2>
+    <div class="quests" id="quests"></div>
+    <h2 class="section-title">🏆 Logros</h2>
     <div class="logros-progress" id="progress"></div>
     <div class="ach-grid" id="ach-grid"></div>
     <h2 class="section-title">📊 Estadísticas</h2>
@@ -13,11 +16,58 @@ import Casino from '../layouts/Casino.astro';
 </Casino>
 
 <script>
-  import { getState, xpForLevel } from '../lib/store';
+  import { claimQuest, getState, questList, xpForLevel } from '../lib/store';
   import { availableAchievements } from '../lib/achievements';
+  import { sfx } from '../lib/sfx';
+  import * as fx from '../lib/fx';
   import { esc, fmt } from '../lib/util';
 
+  /** Tiempo hasta medianoche (diarias) o hasta el lunes (semanales). */
+  function timeLeft(period: 'day' | 'week') {
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (period === 'day' ? 1 : 8 - (((now.getDay() + 6) % 7) + 1)));
+    const ms = +end - +now;
+    const d = Math.floor(ms / 864e5);
+    const h = Math.floor((ms % 864e5) / 36e5);
+    const m = Math.floor((ms % 36e5) / 6e4);
+    return d ? `${d}d ${h}h` : `${h}h ${m}m`;
+  }
+
+  function renderQuests() {
+    const list = questList();
+    const block = (period: 'day' | 'week', title: string) => `
+      <div class="quest-group">
+        <h3>${title} <small class="muted">· se renuevan en ${timeLeft(period)}</small></h3>
+        ${list
+          .filter((q) => q.item.period === period)
+          .map(
+            ({ quest, done, complete, item }) => `<div class="quest${complete ? ' complete' : ''}${item.claimed ? ' claimed' : ''}">
+              <span class="quest-icon">${quest.icon}</span>
+              <div class="quest-body">
+                <b>${esc(quest.text)}</b>
+                <div class="bar sm"><i style="width:${(done / quest.goal) * 100}%"></i></div>
+                <small>${done}/${quest.goal} · premio ${fmt(quest.reward)} 🪙</small>
+              </div>
+              ${item.claimed ? '<span class="chip">✅ Cobrada</span>' : complete ? `<button class="btn btn-gold" data-quest="${esc(item.id)}" data-period="${period}">Cobrar</button>` : ''}
+            </div>`,
+          )
+          .join('')}
+      </div>`;
+    document.getElementById('quests')!.innerHTML = block('day', '📅 De hoy') + block('week', '🗓️ De la semana');
+  }
+
+  document.getElementById('quests')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-quest]');
+    if (!b) return;
+    const coins = claimQuest(b.dataset.quest!, b.dataset.period as 'day' | 'week');
+    if (!coins) return;
+    sfx.coins(8);
+    fx.floatFrom(b, `+${fmt(coins)} 🪙`, 'pos');
+    fx.coinRain(30);
+  });
+
   function render() {
+    renderQuests();
     const s = getState();
     // Los de temporada van primero mientras dura el evento
     const list = availableAchievements(s).sort((a, b) => Number(!!b.event && !s.achievements[b.id]) - Number(!!a.event && !s.achievements[a.id]));
@@ -56,6 +106,7 @@ import Casino from '../layouts/Casino.astro';
       ['🎟️ Boletos rascados', fmt(st.scratches)],
       ['🎁 Cajas abiertas', fmt(st.boxes)],
       ['🃏 Partidas ¿Más o Menos?', fmt(st.hilo)],
+      ['🂡 Manos de Blackjack', `${fmt(st.blackjack)} (${fmt(st.blackjackWins)} ganadas)`],
       ['🔥 Mejor racha', fmt(st.hiloBest)],
       ['🍿 Títulos vistos', fmt(st.seen)],
       ...(st.cursed ? [['🎃 Cajas Malditas', fmt(st.cursed)] as [string, string]] : []),

@@ -2,6 +2,8 @@ import type { MediaType, Title } from './tmdb';
 import { rarityOf, RARITY, statusOf, type Rarity } from './rarity';
 import { availableAchievements, type Achievement } from './achievements';
 import { ARTES, GOLDEN_TICKET_COINS, TALLER_COINS, TALLER_COPIES, upgradesFrom, type Arte } from './arts';
+import { progressOf, questIdsFor, resolveQuest, weekKey, type Period, type QuestItem, type QuestState } from './quests';
+import type { Person, Ref } from './tmdb';
 import { localDate } from './util';
 
 export type Mode = MediaType | 'both';
@@ -32,6 +34,9 @@ export interface Saved {
   backdrop?: string | null;
   /** Firma del arte Firmada (quien la dirigió o creó). */
   sig?: string;
+  /** Saga y directores (películas). undefined = aún no se ha mirado; null = no pertenece a ninguna saga. */
+  col?: Ref | null;
+  dirs?: Person[];
 }
 
 export interface Stats {
@@ -45,6 +50,10 @@ export interface Stats {
   hiloBest: number;
   /** Cajas Malditas abiertas (Halloween). */
   cursed: number;
+  /** Manos de blackjack jugadas, ganadas y blackjacks naturales (21 con dos cartas). */
+  blackjack: number;
+  blackjackWins: number;
+  blackjacks: number;
   bankrupt: number;
   seen: number;
   won: number;
@@ -72,6 +81,10 @@ export interface State {
   lang: Lang;
   /** País para "dónde verla" y para la lista de plataformas. */
   region: string;
+  /** Misiones diarias y semanales en curso. */
+  quests: QuestState;
+  /** Premios de colección ya cobrados ("saga:230", "dir:1776:3"…) → cuándo. */
+  collections: Record<string, number>;
   /** Última modificación: decide qué versión gana al sincronizar con la cuenta. */
   updatedAt: number;
   /** Cuenta dueña de esta partida (undefined = invitado). */
@@ -91,7 +104,7 @@ const fresh = (): State => ({
   botin: [],
   seenKeys: [],
   achievements: {},
-  stats: { slots: 0, jackpots: 0, roulette: 0, quiebras: 0, scratches: 0, boxes: 0, hilo: 0, hiloBest: 0, cursed: 0, bankrupt: 0, seen: 0, won: 0, spent: 0 },
+  stats: { slots: 0, jackpots: 0, roulette: 0, quiebras: 0, scratches: 0, boxes: 0, hilo: 0, hiloBest: 0, cursed: 0, blackjack: 0, blackjackWins: 0, blackjacks: 0, bankrupt: 0, seen: 0, won: 0, spent: 0 },
   daily: { last: '', streak: 0 },
   mode: 'movie',
   muted: false,
@@ -99,6 +112,8 @@ const fresh = (): State => ({
   providersOnly: false,
   lang: 'es-ES',
   region: 'ES',
+  quests: { day: '', week: '', items: [] },
+  collections: {},
   updatedAt: 0,
 });
 
@@ -118,6 +133,8 @@ function load(): State {
 }
 
 let state: State = load();
+// Las misiones del día se sortean al abrir la web, antes de jugar: así la primera partida ya cuenta
+if (refreshQuests()) persist();
 
 function persist() {
   try {
@@ -136,9 +153,81 @@ function emit(name: string, detail: unknown) {
 
 function commit(detail: Partial<ChangeDetail> = {}) {
   state.updatedAt = Date.now();
+  refreshQuests();
   persist();
   emit('casino:change', { coinsDelta: 0, xpDelta: 0, ...detail });
   checkAchievements();
+  checkQuests();
+}
+
+// ---------- Misiones ----------
+
+/** Si ha cambiado el día (o la semana), sortea las misiones nuevas tomando como base el estado actual. */
+function refreshQuests(): boolean {
+  const day = localDate();
+  const week = weekKey();
+  const q = state.quests;
+  if (q.day === day && q.week === week) return false;
+  const keep = q.items.filter((i) => (i.period === 'day' ? q.day === day : q.week === week));
+  const fresh = (period: Period, key: string): QuestItem[] =>
+    questIdsFor(period, key).flatMap((id) => {
+      const quest = resolveQuest(id, period);
+      return quest ? [{ id, period, base: quest.value(state), claimed: false }] : [];
+    });
+  state.quests = {
+    day,
+    week,
+    items: [...(q.day === day ? keep.filter((i) => i.period === 'day') : fresh('day', day)), ...(q.week === week ? keep.filter((i) => i.period === 'week') : fresh('week', week))],
+  };
+  return true;
+}
+
+function checkQuests() {
+  let changed = false;
+  for (const item of state.quests.items) {
+    if (item.notified || item.claimed) continue;
+    const p = progressOf(item, state);
+    if (!p?.complete) continue;
+    item.notified = true;
+    changed = true;
+    emit('casino:quest-done', p.quest);
+  }
+  if (changed) persist();
+}
+
+/** Misiones de hoy y de esta semana, con su progreso. */
+export function questList() {
+  if (refreshQuests()) persist();
+  return state.quests.items.flatMap((item) => {
+    const p = progressOf(item, state);
+    return p ? [{ ...p, item }] : [];
+  });
+}
+
+export const claimableQuests = () => questList().filter((q) => q.complete && !q.item.claimed).length;
+
+/** Cobra una misión completa. Devuelve las fichas, o 0 si no se podía. */
+export function claimQuest(id: string, period: Period): number {
+  const item = state.quests.items.find((i) => i.id === id && i.period === period);
+  const p = item && progressOf(item, state);
+  if (!item || !p?.complete || item.claimed) return 0;
+  item.claimed = true;
+  state.coins += p.quest.reward;
+  state.stats.won += p.quest.reward;
+  commit({ coinsDelta: p.quest.reward });
+  return p.quest.reward;
+}
+
+// ---------- Colecciones ----------
+
+/** Cobra un premio de colección una sola vez. Devuelve false si ya estaba cobrado. */
+export function claimCollection(id: string, coins: number): boolean {
+  if (state.collections[id]) return false;
+  state.collections[id] = Date.now();
+  state.coins += coins;
+  state.stats.won += coins;
+  commit({ coinsDelta: coins });
+  return true;
 }
 
 function checkAchievements() {
@@ -306,7 +395,7 @@ export function addToBotin(t: Title, arte: Arte = 'normal'): number {
 }
 
 /** Cambia datos de una carta guardada (p. ej. la firma, que llega después con la ficha). */
-export function patchSaved(key: string, patch: Partial<Pick<Saved, 'sig' | 'backdrop'>>) {
+export function patchSaved(key: string, patch: Partial<Pick<Saved, 'sig' | 'backdrop' | 'col' | 'dirs'>>) {
   const b = savedOf(key);
   if (!b) return;
   Object.assign(b, patch);

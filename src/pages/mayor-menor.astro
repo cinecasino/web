@@ -40,12 +40,13 @@ import Casino from '../layouts/Casino.astro';
 
 <script>
   import { spend, earn, stat, statMax } from '../lib/store';
-  import { randomDiscover, typesForMode, img, type Title } from '../lib/tmdb';
+  import { img, type Title } from '../lib/tmdb';
+  import { Deck } from '../lib/deck';
   import { register } from '../lib/card';
   import { rarityOf, RARITY } from '../lib/rarity';
   import { sfx } from '../lib/sfx';
   import * as fx from '../lib/fx';
-  import { esc, fmt, shuffle, sleep } from '../lib/util';
+  import { esc, fmt, sleep } from '../lib/util';
 
   const $ = (id: string) => document.getElementById(id)!;
   const leftEl = $('left');
@@ -61,27 +62,15 @@ import Casino from '../layouts/Casino.astro';
   let streak = 0;
   let playing = false;
   let busy = false;
-  let queue: Title[] = [];
+  const deck = new Deck();
   let left: Title | null = null;
   let right: Title | null = null;
 
   const potFor = (k: number) => Math.round(bet * Math.pow(1.45, k));
 
-  async function refill() {
-    const jobs = typesForMode().flatMap((t) => [randomDiscover(t, { minVotes: 400 }, 40), randomDiscover(t, { minVotes: 400 }, 40)]);
-    const res = await Promise.allSettled(jobs);
-    const seen = new Set([left?.key, right?.key, ...queue.map((q) => q.key)]);
-    const fresh = res.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])).filter((t) => !seen.has(t.key) && t.votes > 0);
-    queue.push(...shuffle(fresh));
-  }
-
-  async function nextFor(ref: Title | null): Promise<Title> {
-    if (queue.length < 4) await refill();
-    const idx = queue.findIndex((t) => !ref || (t.vote !== ref.vote && t.key !== ref.key));
-    const t = queue.splice(Math.max(0, idx), 1)[0];
-    if (!t) throw new Error('TMDB no ha devuelto títulos');
-    return t;
-  }
+  /** Siguiente carta con una nota distinta de la de referencia (si no, sería un empate tonto). */
+  const nextFor = (ref: Title | null) =>
+    deck.next((t) => !ref || (t.vote !== ref.vote && t.key !== ref.key), [left?.key, right?.key].filter(Boolean) as string[]);
 
   function cardHTML(t: Title, showVote: boolean) {
     const r = rarityOf(t);
@@ -241,5 +230,5 @@ import Casino from '../layouts/Casino.astro';
   });
 
   renderStatus();
-  refill().catch(() => {});
+  deck.refill().catch(() => {});
 </script>

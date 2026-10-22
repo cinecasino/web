@@ -1,5 +1,6 @@
 // HUD del casino (fichas, nivel, bonus diario, modo, sonido) y ticker de tendencias. Solo en páginas de juego.
-import { claimDaily, dailyAvailable, getState, MIN_BET, rescue, setMode, toggleMute, xpForLevel, type Mode } from './store';
+import { claimDaily, dailyAvailable, getState, MIN_BET, questList, rescue, setMode, toggleMute, xpForLevel, type Mode } from './store';
+import type { Quest } from './quests';
 import { sfx } from './sfx';
 import * as fx from './fx';
 import { openModal, register } from './card';
@@ -30,6 +31,13 @@ function render() {
   $('xp-fill').style.width = `${Math.min(100, (s.xp / need) * 100)}%`;
   $('xp-text').textContent = `${fmt(s.xp)} / ${fmt(need)} XP`;
   $('hud-daily').classList.toggle('available', dailyAvailable());
+  // Misiones: cuántas hay para cobrar (si ninguna, cuántas quedan pendientes)
+  const quests = questList();
+  const ready = quests.filter((q) => q.complete && !q.item.claimed).length;
+  const open = quests.filter((q) => !q.complete).length;
+  $('quests-n').textContent = ready ? String(ready) : String(open);
+  $('hud-quests').classList.toggle('available', ready > 0);
+  $('hud-quests').title = ready ? `${ready} misión(es) para cobrar` : `${open} misión(es) en curso`;
   ($('hud-rescue') as HTMLButtonElement).hidden = s.coins >= MIN_BET;
   $('hud-mode').textContent = MODES[s.mode] + filterBadge();
   $('hud-mute').textContent = s.muted ? '🔇' : '🔊';
@@ -58,6 +66,12 @@ window.addEventListener('casino:achievement', (e) => {
   sfx.win();
   fx.burst({ particleCount: 60, origin: { x: 0.9, y: 0.15 } });
   fx.toast(`<b>¡Logro desbloqueado!</b><br>${esc(a.name)} · <span class="gold">+${fmt(a.reward)} 🪙</span>`, { icon: a.icon, color: 'var(--gold)', ms: 5000 });
+});
+
+window.addEventListener('casino:quest-done', (e) => {
+  const q = (e as CustomEvent<Quest>).detail;
+  sfx.win();
+  fx.toast(`<b>¡Misión completada!</b><br>${esc(q.text)} · <span class="gold">cóbrala en Logros: +${fmt(q.reward)} 🪙</span>`, { icon: q.icon, color: 'var(--gold)', ms: 5000 });
 });
 
 window.addEventListener('casino:copy', (e) => {

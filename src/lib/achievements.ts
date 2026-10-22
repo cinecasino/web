@@ -16,7 +16,8 @@ export interface Achievement {
   event?: GameEvent['id'];
 }
 
-const plays = (s: State) => s.stats.slots + s.stats.roulette + s.stats.scratches + s.stats.boxes + s.stats.hilo;
+const plays = (s: State) => s.stats.slots + s.stats.roulette + s.stats.scratches + s.stats.boxes + s.stats.hilo + s.stats.blackjack;
+const collected = (prefix: string) => (s: State) => Object.keys(s.collections).filter((k) => k.startsWith(prefix)).length;
 const owned = (r: string) => (s: State) => s.botin.filter((b) => b.rarity === r).length;
 const withArte = (...a: Arte[]) => (s: State) => s.botin.filter((b) => b.arte && a.includes(b.arte)).length;
 const specials = (s: State) => s.botin.filter((b) => isSpecial(b.arte)).length;
@@ -70,6 +71,12 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'retro4', icon: '📼', name: 'Nostalgia total', desc: 'Ten los 4 artes retro: Noir, VHS, Pop-art y Píxel', goal: 4, reward: 600, value: retroSet },
   { id: 'firmada', icon: '✍️', name: 'Autógrafo', desc: 'Consigue una carta Firmada', goal: 1, reward: 1000, value: withArte('firmada') },
   { id: 'billete', icon: '🎫', name: 'Willy Wonka', desc: 'Encuentra un Billete dorado', goal: 1, reward: 500, value: withArte('billete') },
+  // Blackjack y colecciones
+  { id: 'bj10', icon: '🂡', name: 'Crupier', desc: 'Juega 10 manos de Blackjack', goal: 10, reward: 150, value: (s) => s.stats.blackjack },
+  { id: 'bj21', icon: '🃏', name: '¡Blackjack!', desc: 'Consigue 21 con las dos primeras cartas', goal: 1, reward: 300, value: (s) => s.stats.blackjacks },
+  { id: 'saga1', icon: '🧩', name: 'Saga completa', desc: 'Completa una saga entera', goal: 1, reward: 400, value: collected('saga:') },
+  { id: 'saga3', icon: '📚', name: 'Maratoniano', desc: 'Completa 3 sagas', goal: 3, reward: 1000, value: collected('saga:') },
+  { id: 'auteur', icon: '🎬', name: 'Cinéfilo de autor', desc: 'Junta 5 películas del mismo director', goal: 1, reward: 400, value: (s) => Object.keys(s.collections).filter((k) => /^dir:\d+:5$/.test(k)).length },
   { id: `halloween-${YEAR}`, icon: '🎃', name: `Noche de difuntos ${YEAR}`, desc: 'Guarda 3 títulos de terror durante Halloween', goal: 3, reward: 666, value: horrorDuringEvent, event: 'halloween' },
   { id: 'cursed-box', icon: '⚰️', name: 'Profanador', desc: 'Abre la Caja Maldita de Halloween', goal: 1, reward: 300, value: (s) => s.stats.cursed, event: 'halloween' },
   { id: 'haunted', icon: '👻', name: 'Poseída', desc: 'Consigue una carta Embrujada', goal: 1, reward: 300, value: withArte('embrujada'), event: 'halloween' },

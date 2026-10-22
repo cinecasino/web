@@ -7,8 +7,9 @@ Tiras de la palanca, giras la ruleta o rascas un boleto, y el premio es un títu
 
 | | |
 |---|---|
-| 🎰 **Juegos** | Tragaperras, ruleta, cajas de botín, rasca y gana, ¿Más o Menos? y "Me siento con suerte" |
-| 💎 **Progreso** | Fichas, XP, niveles, 22 logros, bonus diario y un botín con rarezas de Común a Mítica |
+| 🎰 **Juegos** | Tragaperras, ruleta, cajas de botín, rasca y gana, ¿Más o Menos?, Blackjack y "Me siento con suerte" (y eventos de temporada, como la Ruleta del Terror) |
+| 💎 **Progreso** | Fichas, XP, niveles, más de 40 logros, misiones diarias y semanales, colecciones (sagas y directores) y un botín con 9 rarezas, sellos y 13 artes |
+| 📡 **Para decidir** | "Solo mis plataformas", país e idioma de los datos, y una tarjeta del premio para compartir |
 | 💾 **Sin registro** | La partida vive en tu navegador; puedes exportarla e importarla en otro dispositivo |
 | 📲 **App** | Instalable en Android y en escritorio, y funciona sin conexión |
 | 🛡️ **Privacidad** | Sin cuentas, sin analítica, sin publicidad y sin cookies propias |

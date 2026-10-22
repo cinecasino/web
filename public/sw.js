@@ -1,6 +1,6 @@
 // Service worker de Cine Casino: app instalable y uso sin conexión.
 // Sube VERSION al cambiar este archivo para invalidar las cachés antiguas.
-const VERSION = 'v5';
+const VERSION = 'v6';
 const SHELL = `shell-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const IMAGES = 'tmdb-img-v1';
@@ -69,8 +69,9 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Carteles de TMDB: caché primero (no cambian)
-  if (url.hostname === 'image.tmdb.org') return e.respondWith(cacheFirst(req, IMAGES));
+  // Carteles de TMDB: caché primero (no cambian). Las peticiones con CORS (la tarjeta para compartir las dibuja
+  // en un canvas) no pueden recibir la copia opaca que guardó un <img>: van a la red.
+  if (url.hostname === 'image.tmdb.org') return req.mode === 'cors' ? undefined : e.respondWith(cacheFirst(req, IMAGES));
   // Datos de TMDB (directo, vía el Worker de Cloudflare o vía nuestro proxy): red primero, caché si no hay conexión
   if (url.hostname === 'api.themoviedb.org' || (url.origin !== self.location.origin && url.pathname.startsWith('/3/')))
     return e.respondWith(networkFirst(req, DATA));

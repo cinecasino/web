@@ -66,6 +66,9 @@ modal.addEventListener('click', (e) => {
   if (e.target === modal || (e.target as HTMLElement).closest('[data-close]')) closeModal();
 });
 modal.addEventListener('close', () => {
+  // El evento "close" llega después de cerrar: si mientras tanto se ha abierto otra ficha
+  // (p. ej. el Taller cierra y enseña la carta mejorada), no hay que vaciarla
+  if (modal.open) return;
   (modal.querySelector('.modal-inner') as HTMLElement).innerHTML = '';
   fx.liftFx(null);
 });

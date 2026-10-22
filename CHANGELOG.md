@@ -14,6 +14,13 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y l
 - **Artes:** cada premio sale con un acabado sorteado: Brillante, Holográfico, Noir, VHS, Pop-art, Píxel, Dorado, Glitch, Lenticular, Firmada, Billete dorado (+5.000 fichas) y, en Halloween, Embrujada. Las apuestas altas y las cajas caras suben la probabilidad.
 - **Copias y Taller:** un título repetido ya no se pierde, se guarda como copia; con 3 copias o con fichas se sube el arte de una carta un escalón.
 - **Álbum de artes** y filtros por sello y por arte en Mi Botín; 13 logros nuevos.
+- **Misiones:** 3 diarias y 2 semanales, iguales para todos el mismo día; se cobran en Logros y el HUD avisa cuando hay alguna lista.
+- **Colecciones** (nueva página): completa sagas enteras y junta películas del mismo director (3, 5 y su filmografía notable) para ganar premios. La ficha enseña cuántas partes de su saga tienes.
+- **Blackjack de pelis:** cada carta vale su nota redondeada y las Míticas o Divinas son el As; blackjack paga 3:2 y ganar te da la mejor peli de tu mano (con arte sorteado según la apuesta). Comparte mazo con ¿Más o Menos? (`src/lib/deck.ts`).
+- **📤 Compartir:** desde cualquier ficha se crea una imagen 1080×1350 con el póster, la rareza, el arte y los sellos, que se comparte con el menú del sistema o se descarga.
+
+### Corregido (en curso)
+- Cerrar una ficha y abrir otra al momento (como al salir del Taller) dejaba la nueva vacía.
 
 ### Cambiado
 - **La web pasa a GitHub Pages** (`pages.yml`): es 100 % estática, sin registro, con el navegador llamando a TMDB directamente. Se retira Vercel.

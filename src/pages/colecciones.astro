@@ -1,0 +1,189 @@
+---
+import Casino from '../layouts/Casino.astro';
+import { u } from '../site';
+---
+
+<Casino title="Colecciones" active="colecciones">
+  <section class="colecciones">
+    <h1 class="page-title">🧩 COLECCIONES</h1>
+    <p class="muted center">
+      Completa <b>sagas</b> enteras y junta películas del mismo <b>director</b> para llevarte premios. Cuentan las películas de tu botín; las que faltan salen en gris, y
+      puedes abrirlas para ver de qué van.
+    </p>
+    <p class="muted small center" id="col-status" aria-live="polite"></p>
+
+    <h2 class="section-title">🧩 Sagas</h2>
+    <div class="col-list" id="sagas"><p class="muted">Cargando…</p></div>
+
+    <h2 class="section-title">🎬 Directores</h2>
+    <p class="muted small">Premios al juntar 3 y 5 películas de quien las dirigió, y uno grande por su filmografía notable completa (largometrajes con al menos 200 votos en TMDB).</p>
+    <div class="col-list" id="directors"><p class="muted">Cargando…</p></div>
+
+    <p class="center"><a class="btn btn-gold" href={u('tragaperras')}>🎰 A por más películas</a></p>
+  </section>
+</Casino>
+
+<script>
+  import { claimCollection, getState, savedOf, type Saved } from '../lib/store';
+  import { collectionParts, directedMovies, type Title } from '../lib/tmdb';
+  import { enrich, savedTileHTML, tileHTML } from '../lib/card';
+  import { sfx } from '../lib/sfx';
+  import * as fx from '../lib/fx';
+  import { esc, fmt } from '../lib/util';
+
+  const SAGA_COINS_PER_PART = 150;
+  const DIR_TIERS: { id: string; n: number | 'all'; coins: (total: number) => number; label: string }[] = [
+    { id: '3', n: 3, coins: () => 300, label: '3 películas' },
+    { id: '5', n: 5, coins: () => 700, label: '5 películas' },
+    { id: 'all', n: 'all', coins: (total) => Math.max(1000, 150 * total), label: 'Filmografía completa' },
+  ];
+
+  const statusEl = document.getElementById('col-status')!;
+  const sagasEl = document.getElementById('sagas')!;
+  const dirsEl = document.getElementById('directors')!;
+  const movies = () => getState().botin.filter((b) => b.type === 'movie');
+
+  /** Carta de una película: la tuya (con su arte) o, si te falta, en gris. */
+  const partHTML = (t: Title) => {
+    const mine = savedOf(t.key);
+    return mine ? savedTileHTML(mine, { size: 'w185', sellos: false }) : tileHTML(t, { size: 'w185', sellos: false, cls: 'missing' });
+  };
+
+  // ---------- Rellenar sagas y directores de las cartas que aún no los tienen ----------
+  let backfilling = false;
+  async function backfill() {
+    if (backfilling) return;
+    const todo = movies().filter((b) => b.col === undefined);
+    if (!todo.length) return;
+    backfilling = true;
+    let done = 0;
+    const worker = async () => {
+      for (let b = todo.shift(); b; b = todo.shift()) {
+        await enrich(b);
+        statusEl.textContent = `🔎 Mirando a qué saga pertenece cada película… ${++done}`;
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    statusEl.textContent = '';
+    backfilling = false;
+  }
+
+  // ---------- Pintado ----------
+  let renderToken = 0;
+  async function render() {
+    const token = ++renderToken;
+    const s = getState();
+
+    // Sagas: las que tienen al menos una película en tu botín
+    const sagaIds = new Map<number, string>();
+    for (const b of movies()) if (b.col) sagaIds.set(b.col.id, b.col.name);
+    const sagas = await Promise.all(
+      [...sagaIds].map(async ([id, name]) => {
+        try {
+          const { parts } = await collectionParts(id);
+          const owned = parts.filter((p) => savedOf(p.key)).length;
+          return { id, name: name.replace(/\s*-\s*(Colección|Collection)$/i, ''), parts, owned };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    if (token !== renderToken) return;
+    const list = sagas.filter((x): x is NonNullable<typeof x> => !!x && x.parts.length > 1).sort((a, b) => b.owned / b.parts.length - a.owned / a.parts.length);
+    sagasEl.innerHTML = list.length
+      ? list
+          .map((g) => {
+            const key = `saga:${g.id}`;
+            const complete = g.owned >= g.parts.length;
+            const coins = SAGA_COINS_PER_PART * g.parts.length;
+            const claimed = !!s.collections[key];
+            return `<article class="col-card${complete ? ' complete' : ''}" id="saga-${g.id}">
+              <header>
+                <h3>${esc(g.name)}</h3>
+                <span class="col-count"><b>${g.owned}</b>/${g.parts.length}</span>
+                ${claimed ? '<span class="chip">✅ Cobrado</span>' : complete ? `<button class="btn btn-gold" data-claim="${key}" data-coins="${coins}">🏆 Cobrar ${fmt(coins)} 🪙</button>` : `<span class="muted small">Premio: ${fmt(coins)} 🪙</span>`}
+              </header>
+              <div class="bar sm"><i style="width:${(g.owned / g.parts.length) * 100}%"></i></div>
+              <div class="col-strip">${g.parts.map(partHTML).join('')}</div>
+            </article>`;
+          })
+          .join('')
+      : '<p class="muted">Aún no tienes ninguna película que forme parte de una saga. ¡Sigue jugando!</p>';
+
+    // Directores: los que tienen 2 o más películas en tu botín
+    const byDir = new Map<number, { name: string; mine: Saved[] }>();
+    for (const b of movies()) for (const d of b.dirs ?? []) {
+      const e = byDir.get(d.id) ?? { name: d.name, mine: [] };
+      e.mine.push(b);
+      byDir.set(d.id, e);
+    }
+    const top = [...byDir].filter(([, e]) => e.mine.length >= 2).sort((a, b) => b[1].mine.length - a[1].mine.length).slice(0, 12);
+    const dirs = await Promise.all(
+      top.map(async ([id, e]) => {
+        const films = await directedMovies(id).catch(() => [] as Title[]);
+        const notable = films.filter((f) => savedOf(f.key)).length;
+        return { id, ...e, films, notable };
+      }),
+    );
+    if (token !== renderToken) return;
+    dirsEl.innerHTML = dirs.length
+      ? dirs
+          .map((d) => {
+            const tiers = DIR_TIERS.map((t) => {
+              const key = `dir:${d.id}:${t.id}`;
+              const goal = t.n === 'all' ? d.films.length : t.n;
+              const have = t.n === 'all' ? d.notable : d.mine.length;
+              if (t.n === 'all' && goal < 3) return '';
+              const coins = t.coins(goal);
+              const state = s.collections[key]
+                ? '<span class="chip">✅</span>'
+                : have >= goal
+                  ? `<button class="btn btn-gold" data-claim="${key}" data-coins="${coins}">🏆 ${fmt(coins)} 🪙</button>`
+                  : `<small class="muted">${Math.min(have, goal)}/${goal} · ${fmt(coins)} 🪙</small>`;
+              return `<li><span>${t.label}</span>${state}</li>`;
+            }).join('');
+            // Su filmografía notable (las tuyas en color); si TMDB no la da, al menos las que tienes
+            const strip = d.films.length
+              ? d.films.slice(0, 30).map(partHTML)
+              : d.mine.map((m) => savedTileHTML(m, { size: 'w185', sellos: false }));
+            return `<article class="col-card">
+              <header><h3>🎬 ${esc(d.name)}</h3><span class="col-count"><b>${d.mine.length}</b> en tu botín</span></header>
+              <ul class="col-tiers">${tiers}</ul>
+              <div class="col-strip">${strip.join('')}</div>
+            </article>`;
+          })
+          .join('')
+      : '<p class="muted">Cuando tengas 2 películas del mismo director, aparecerá aquí.</p>';
+
+    // Desde la ficha se llega con #saga-<id>: se baja a esa saga la primera vez
+    if (!scrolled && location.hash) {
+      const target = document.getElementById(location.hash.slice(1));
+      if (target) {
+        target.scrollIntoView({ block: 'start' });
+        scrolled = true;
+      }
+    }
+  }
+  let scrolled = false;
+
+  document.querySelector('.colecciones')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-claim]');
+    if (!btn) return;
+    const coins = Number(btn.dataset.coins);
+    if (!claimCollection(btn.dataset.claim!, coins)) return;
+    sfx.jackpot();
+    fx.coinRain(60);
+    fx.fireworks(1800);
+    fx.toast(`<b>¡Colección completada!</b> +${fmt(coins)} 🪙`, { icon: '🧩', color: 'var(--gold)' });
+  });
+
+  // Los cambios llegan a ráfagas mientras se rellenan las sagas: se repinta como mucho cada medio segundo
+  let pending = 0;
+  window.addEventListener('casino:change', () => {
+    clearTimeout(pending);
+    pending = window.setTimeout(render, 500);
+  });
+
+  render();
+  backfill();
+</script>

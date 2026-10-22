@@ -1,4 +1,4 @@
-import { details, img, type Details, type Title } from './tmdb';
+import { collectionParts, details, img, type Details, type Title } from './tmdb';
 import { atLeast, rarityOf, RARITY, STATUS, statusOf } from './rarity';
 import { addToBotin, getState, inBotin, isSeen, markSeen, patchSaved, savedOf, type Saved } from './store';
 import { ARTES, arteBadge, arteRender, isSpecial, rollArte, type Arte } from './arts';
@@ -123,18 +123,25 @@ export function grantClaim(t: Title, luck = 1): Arte {
 }
 export const canClaim = (key: string) => claimable.has(key);
 
-/** La firma del arte Firmada es quien la dirigió (o creó la serie): llega con la ficha. */
-async function sign(t: Title) {
+/**
+ * Completa una carta recién guardada con datos de la ficha: saga y directores (para Colecciones)
+ * y la firma del arte Firmada. La ficha casi siempre está ya en caché porque se acaba de abrir.
+ */
+export async function enrich(t: Pick<Title, 'key' | 'type' | 'id'>, arte?: Arte) {
   try {
-    const name = (await details(t.type, t.id)).director.split(',')[0]?.trim();
-    if (name) patchSaved(t.key, { sig: name });
+    const d = await details(t.type, t.id);
+    const name = d.director.split(',')[0]?.trim();
+    patchSaved(t.key, {
+      ...(t.type === 'movie' ? { col: d.collection, dirs: d.directors } : {}),
+      ...(arte === 'firmada' && name ? { sig: name } : {}),
+    });
   } catch {}
 }
 
 /** Guarda un título ganado con su arte (o suma una copia si ya lo tenías). Devuelve la XP. */
 export function collect(t: Title, arte: Arte): number {
   const xp = addToBotin(t, arte);
-  if (xp && arte === 'firmada') sign(t);
+  if (xp) enrich(t, arte);
   return xp;
 }
 
@@ -191,6 +198,7 @@ export async function showTitle(
             <button class="btn btn-gold" data-act="botin"></button>
             <button class="btn btn-green" data-act="seen"></button>
             <button class="btn btn-ghost" data-act="trailer" hidden>▶ Tráiler</button>
+            <button class="btn btn-ghost" data-act="share" title="Crea una imagen con la carta para enviarla">📤 Compartir</button>
             <a class="btn btn-ghost" target="_blank" rel="noopener" href="https://www.themoviedb.org/${t.type}/${t.id}">TMDB ↗</a>
           </div>
           <div class="tm-trailer" data-f="trailer"></div>
@@ -237,6 +245,19 @@ export async function showTitle(
     } else fx.floatFrom(btnBotin, '+1 copia', 'pos');
     sync();
   };
+  const btnShare = $<HTMLButtonElement>('[data-act="share"]');
+  btnShare.onclick = async () => {
+    btnShare.disabled = true;
+    btnShare.innerHTML = '<span class="loading-dots">Preparando</span>';
+    try {
+      const { shareTitle } = await import('./share');
+      await shareTitle(t, arte, savedOf(t.key)?.sig);
+    } finally {
+      btnShare.disabled = false;
+      btnShare.innerHTML = '📤 Compartir';
+    }
+  };
+
   btnSeen.onclick = () => {
     if (!inBotin(t.key)) return;
     const coins = markSeen(t);
@@ -286,6 +307,20 @@ export async function showTitle(
       if (extra.length) $('[data-f="badges"]').insertAdjacentHTML('beforeend', `<span class="tm-sellos">${selloHTML(extra)}</span>`);
       const sig = inner.querySelector<HTMLElement>('.ar-sig');
       if (sig && !saved?.sig && d.director) sig.textContent = d.director.split(',')[0];
+      // Saga: cuántas partes tienes ya en el botín
+      if (d.collection) {
+        const col = d.collection;
+        // (la propia carta cuenta aunque aún no se haya guardado su saga)
+        const owned = getState().botin.filter((b) => b.col?.id === col.id || b.key === t.key).length;
+        const chip = document.createElement('a');
+        chip.className = 'chip saga-chip';
+        chip.href = `${u('colecciones')}#saga-${col.id}`;
+        chip.innerHTML = `🧩 ${esc(col.name.replace(/\s*-\s*(Colección|Collection)$/i, ''))}`;
+        $('[data-f="badges"]').appendChild(chip);
+        collectionParts(col.id)
+          .then(({ parts }) => parts.length && (chip.innerHTML += ` · <b>${Math.min(owned, parts.length)}/${parts.length}</b>`))
+          .catch(() => {});
+      }
       const p = d.providers;
       const rows = provRow('Incluida en', p.flatrate) + provRow('Alquiler', p.rent) + provRow('Compra', p.buy);
       const country = esc(regionName(getState().region));

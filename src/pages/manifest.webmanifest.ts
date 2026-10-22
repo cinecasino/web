@@ -31,6 +31,7 @@ export const GET: APIRoute = () => {
       { name: 'Tragaperras', url: u('tragaperras'), icons: icon192 },
       { name: 'Mi Botín', url: u('botin'), icons: icon192 },
       { name: 'Cajas de botín', url: u('cajas'), icons: icon192 },
+      { name: 'Blackjack', url: u('blackjack'), icons: icon192 },
     ],
   };
   return new Response(JSON.stringify(manifest, null, 2), { headers: { 'content-type': 'application/manifest+json; charset=utf-8' } });

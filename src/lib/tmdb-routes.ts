@@ -6,6 +6,8 @@ export const ROUTES: [RegExp, number][] = [
   [/^trending\/(all|movie|tv)\/week$/, 3600],
   [/^(movie|tv)\/\d{1,9}$/, 86400],
   [/^watch\/providers\/(movie|tv)$/, 86400],
+  [/^collection\/\d{1,9}$/, 86400],
+  [/^person\/\d{1,9}\/movie_credits$/, 86400],
 ];
 
 export const PARAMS = new Set([

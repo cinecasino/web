@@ -1100,6 +1100,57 @@ main { max-width: 1240px; margin: 0 auto; padding: 8px 16px 40px; }
 .arte-item span { grid-row: span 2; font-size: 1.8rem; }
 .arte-item small { color: var(--muted); font-size: 0.78rem; }
 
+/* ============ BLACKJACK ============ */
+.bj-table { max-width: 900px; margin: 18px auto; padding: 22px; border-radius: 30px; background: radial-gradient(ellipse at 50% 40%, #0f6b3a, #063a20 70%); border: 8px solid #5a3200; box-shadow: inset 0 0 40px #000a, 0 20px 40px #000a; }
+.bj-row { display: flex; flex-direction: column; gap: 10px; }
+.bj-head { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--display); color: #e8ffe8; }
+.bj-head span { font-size: 1.6rem; color: var(--gold); text-shadow: 0 0 10px #000; }
+.bj-hand { display: flex; gap: 10px; min-height: 170px; flex-wrap: wrap; }
+.bj-card { position: relative; width: 110px; flex: none; }
+.bj-card .tile { border-width: 3px; }
+.bj-card.deal { animation: dealIn 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+.bj-card.back { aspect-ratio: 2 / 3; display: grid; place-items: center; border-radius: 14px; font-size: 2.4rem; background: repeating-linear-gradient(45deg, #b0002a 0 10px, #8a0021 10px 20px); border: 4px solid var(--gold); }
+.bj-val { position: absolute; z-index: 4; bottom: -10px; right: -8px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; font-family: var(--display); font-size: 1.1rem; color: #2a1600; background: var(--gold); border: 3px solid #fff; box-shadow: 0 4px 10px #000a; }
+.bj-msg { margin: 16px 0; padding: 10px; border-radius: 14px; text-align: center; font-family: var(--display); font-size: 1.15rem; color: #fff; background: #0006; }
+.bj-msg small { display: block; margin-top: 4px; font-family: var(--body); font-size: 0.85rem; color: #d9f5dd; }
+.bj-msg.win, .bj-msg.blackjack { color: var(--gold); text-shadow: 0 0 14px var(--gold); }
+.bj-msg.lose { color: #ff9aa8; }
+.bj-rules { max-width: 640px; margin: 24px auto 0; }
+@media (max-width: 640px) {
+  .bj-table { padding: 14px; border-width: 5px; }
+  .bj-card { width: 78px; }
+  .bj-hand { min-height: 120px; gap: 6px; }
+}
+
+/* ============ COLECCIONES ============ */
+.col-list { display: flex; flex-direction: column; gap: 16px; }
+.col-card { padding: 16px 18px; border-radius: 20px; background: #ffffff08; border: 1px solid var(--line); scroll-margin-top: 140px; }
+.col-card.complete { border-color: var(--gold); box-shadow: 0 0 24px #ffc93c33; }
+.col-card header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.col-card h3 { margin: 0; flex: 1; font-family: var(--display); font-size: 1.05rem; }
+.col-count b { font-family: var(--display); font-size: 1.3rem; color: var(--gold); }
+.col-strip { display: flex; gap: 10px; overflow-x: auto; padding: 12px 2px 6px; scrollbar-width: thin; }
+.col-strip .tile { width: 96px; flex: none; }
+.tile.missing { border-color: #ffffff22; box-shadow: none; }
+.tile.missing img { filter: grayscale(1) brightness(0.45); }
+.col-tiers { list-style: none; display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 0; padding: 0; }
+.col-tiers li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 12px; background: #0005; font-size: 0.85rem; }
+.col-tiers .btn { padding: 6px 12px; font-size: 0.8rem; }
+.saga-chip { text-decoration: none; border-color: var(--cyan); }
+
+/* ============ MISIONES ============ */
+.quests { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.quest-group h3 { margin: 0 0 10px; font-family: var(--display); font-size: 1rem; }
+.quest { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 10px; border-radius: 16px; background: #ffffff08; border: 2px solid var(--line); }
+.quest.complete { border-color: var(--gold); background: #ffc93c14; }
+.quest.claimed { opacity: 0.6; }
+.quest-icon { font-size: 2rem; flex: none; }
+.quest-body { flex: 1; min-width: 0; }
+.quest-body small { color: var(--muted); }
+.quest .btn { padding: 8px 14px; font-size: 0.85rem; }
+.quests-chip { text-decoration: none; }
+.quests-chip.available { background: linear-gradient(135deg, #ff9f1c, var(--gold)); color: #2a1600; font-weight: 800; animation: pulseGlow 1.2s infinite; }
+
 /* ============ LOGROS ============ */
 .logros-progress { display: flex; align-items: center; gap: 14px; max-width: 600px; margin: 16px auto 24px; }
 .bar { flex: 1; height: 14px; border-radius: 99px; background: #ffffff14; overflow: hidden; }

@@ -41,7 +41,9 @@ const nav: { href: string; label: string; icon: string; key: string; event?: str
   { href: u('cajas'), label: 'Cajas', icon: '🎁', key: 'cajas' },
   { href: u('rasca'), label: 'Rasca', icon: '🎟️', key: 'rasca' },
   { href: u('mayor-menor'), label: '¿Más o Menos?', icon: '🃏', key: 'hilo' },
+  { href: u('blackjack'), label: 'Blackjack', icon: '🂡', key: 'blackjack' },
   { href: u('botin'), label: 'Mi Botín', icon: '💰', key: 'botin' },
+  { href: u('colecciones'), label: 'Colecciones', icon: '🧩', key: 'colecciones' },
   { href: u('logros'), label: 'Logros', icon: '🏆', key: 'logros' },
 ];
 ---
@@ -107,6 +109,7 @@ const nav: { href: string; label: string; icon: string; key: string; event?: str
                 </div>
               </div>
               <button id="hud-daily" class="chip daily" title="Bonus diario">🎁 Diario</button>
+              <a id="hud-quests" class="chip quests-chip" href={`${u('logros')}#misiones`} title="Misiones">📜 <b id="quests-n"></b></a>
               <button id="hud-rescue" class="chip rescue" hidden>🆘 Rescate</button>
               <button id="hud-mode" class="chip" title="Películas, series o ambas">🎬 Pelis</button>
               <button id="hud-mute" class="chip" title="Sonido" aria-label="Silenciar" aria-pressed="false">🔊</button>
