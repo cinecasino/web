@@ -76,7 +76,7 @@ jobs:
             echo "::error::El token de TMDB ha aparecido en dist/"; exit 1
           fi
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
